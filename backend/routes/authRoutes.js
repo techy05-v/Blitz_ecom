@@ -1,0 +1,12 @@
+const express = require("express")
+const router =express.Router()
+const {refreshAccessToken,resendOtp, googleAuth,adminSignIn,userSignUp,userLogin,verifyOtp,forgotPassword }= require("../controller/authController")
+router.post("/refreshtoken",refreshAccessToken)
+router.post("/resendotp",resendOtp)
+router.post("/google",googleAuth)
+router.post("/login",userLogin)
+router.post("/signin",adminSignIn)
+router.post("/signup",userSignUp)
+router.post("/verifyOtp",verifyOtp)
+router.post("forgotPassword",forgotPassword)
+module.exports=router

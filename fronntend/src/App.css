@@ -1,0 +1,19 @@
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  
+  body {
+    position: relative;
+    width: 100vw;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+

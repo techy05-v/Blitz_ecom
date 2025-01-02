@@ -1,0 +1,57 @@
+.app {
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+.image-cropper-card {
+  margin: 20px auto;
+  max-width: 400px;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.image-cropper-header h2 {
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.cropper-container {
+  height: 300px;
+  width: 300px;
+  margin: 0 auto;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.crop-button {
+  background: linear-gradient(to right, #4caf50, #81c784);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: background 0.3s ease;
+}
+
+.crop-button:hover {
+  background: linear-gradient(to right, #388e3c, #66bb6a);
+}
+
+.cropped-size-info {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.cropped-image-preview img {
+  width: 300px;
+  height: 300px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
