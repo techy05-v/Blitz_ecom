@@ -1,60 +1,57 @@
-// ProductPage.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { axiosInstance } from '../../api/axiosConfig';
-import cartService from '../../api/cartService/cartService';
-import AnimatedCartModal from '../../confirmationModal/AnimatedCartModal';
-import QuantityLimitModal from '../../confirmationModal/QuantityLimitModal';
-import ProductCard from '../../authentication/user/ProductCard';
-import { fetchProducts, fetchCategories } from "../../api/product";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
+import { axiosInstance } from "../../api/axiosConfig";
+import cartService from "../../api/cartService/cartService";
+import AnimatedCartModal from "../../confirmationModal/AnimatedCartModal";
+import QuantityLimitModal from "../../confirmationModal/QuantityLimitModal";
+import ProductCard from "../../authentication/user/ProductCard";
+import { fetchProducts } from "../../api/product";
 
 export default function ProductPage() {
   const { id } = useParams();
   const [product, setProduct] = useState({
-    productName: '',
-    category: { CategoryName: '' },
+    productName: "",
+    category: { CategoryName: "" },
     images: [],
-    description: '',
+    description: "",
     salePrice: 0,
     discountPercent: 0,
     availableSizes: [],
-    color: '',
+    color: "",
     tags: [],
-    isactive: true
+    isactive: true,
   });
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [showZoom, setShowZoom] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [showQuantityLimitModal, setShowQuantityLimitModal] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
-  const [modalMessage, setModalMessage] = useState('');
+  const [modalMessage, setModalMessage] = useState("");
   const [relatedProducts, setRelatedProducts] = useState([]);
   const imageRef = useRef(null);
-  
-  const MAX_QUANTITY = 5; 
-  const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+  const MAX_QUANTITY = 5;
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         const response = await axiosInstance.get(`/user/product/${id}`);
-        console.log('Product data:', response.data.data);
+        console.log("Product data:", response.data.data);
         setProduct(response.data.data);
       } catch (err) {
-        console.error('Error fetching product:', err);
-        setError('Failed to load product. Please try again later.');
+        console.error("Error fetching product:", err);
+        setError("Failed to load product. Please try again later.");
       }
     };
 
     fetchProduct();
   }, [id]);
 
-   const checkCartQuantity = async (productId, size) => {
+  const checkCartQuantity = async (productId, size) => {
     try {
       const response = await cartService.getCartItems();
       if (!response.success) {
@@ -62,11 +59,11 @@ export default function ProductPage() {
       }
       const cartItems = response.cart?.items || [];
       const existingItem = cartItems.find(
-        item => item.product._id === productId && item.size === size
+        (item) => item.product._id === productId && item.size === size
       );
       return existingItem ? existingItem.quantity : 0;
     } catch (err) {
-      console.error('Error checking cart quantity:', err);
+      console.error("Error checking cart quantity:", err);
       return 0;
     }
   };
@@ -74,10 +71,12 @@ export default function ProductPage() {
   const fetchRelatedProducts = async () => {
     try {
       const response = await fetchProducts();
-      const filteredProducts = response.filter(p => p._id !== id && p.category._id === product.category._id);
+      const filteredProducts = response.filter(
+        (p) => p._id !== id && p.category._id === product.category._id
+      );
       setRelatedProducts(filteredProducts.slice(0, 4));
     } catch (err) {
-      console.error('Error fetching related products:', err);
+      console.error("Error fetching related products:", err);
     }
   };
 
@@ -88,7 +87,7 @@ export default function ProductPage() {
   }, [product.category, id]);
 
   useEffect(() => {
-    console.log('Related Products:', relatedProducts);
+    console.log("Related Products:", relatedProducts);
   }, [relatedProducts]);
 
   if (error) {
@@ -99,30 +98,26 @@ export default function ProductPage() {
     return <div className="text-center py-8">Loading...</div>;
   }
 
-  const availableSizesMap = product.availableSizes.reduce((acc, curr) => {
-    acc[curr.size] = curr.quantity;
-    return acc;
-  }, {});
-
   const handleSizeSelect = (size) => {
-    if (availableSizesMap[size] > 0) {
+    const availableSize = product.availableSizes.find(s => s.size === size);
+    if (availableSize && availableSize.quantity > 0) {
       setSelectedSize(size);
-      setError('');
+      setError("");
     }
   };
 
   const handleAddToBag = async () => {
     if (!selectedSize) {
-      setError('Please select a size before adding to bag.');
+      setError("Please select a size before adding to bag.");
       return;
     }
 
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const currentQuantity = await checkCartQuantity(id, selectedSize);
-      
+
       if (currentQuantity >= MAX_QUANTITY) {
         setShowQuantityLimitModal(true);
         return;
@@ -131,25 +126,26 @@ export default function ProductPage() {
       const result = await cartService.addToCart({
         productId: id,
         quantity: 1,
-        size: selectedSize
+        size: selectedSize,
       });
 
       if (result.success) {
-        setModalMessage('Item added to cart successfully!');
+        setModalMessage("Item added to cart successfully!");
         setIsSuccessModalOpen(true);
-      } else if (result.message.includes('Total quantity cannot exceed 5')) {
+      } else if (result.message.includes("Total quantity cannot exceed 5")) {
         setShowQuantityLimitModal(true);
       } else {
-        setModalMessage(result.message || 'Failed to add item to cart.');
+        setModalMessage(result.message || "Failed to add item to cart.");
         setIsErrorModalOpen(true);
       }
-
     } catch (err) {
-      console.log('Full error object:', err);
-      if (err.message?.includes('Total quantity cannot exceed 5')) {
+      console.log("Full error object:", err);
+      if (err.message?.includes("Total quantity cannot exceed 5")) {
         setShowQuantityLimitModal(true);
       } else {
-        setModalMessage(err.message || 'Failed to add item to cart. Please try again.');
+        setModalMessage(
+          err.message || "Failed to add item to cart. Please try again."
+        );
         setIsErrorModalOpen(true);
       }
     } finally {
@@ -159,16 +155,16 @@ export default function ProductPage() {
 
   const handleBuyNow = async () => {
     if (!selectedSize) {
-      setError('Please select a size before proceeding to buy.');
+      setError("Please select a size before proceeding to buy.");
       return;
     }
 
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const currentQuantity = await checkCartQuantity(id, selectedSize);
-      
+
       if (currentQuantity >= MAX_QUANTITY) {
         setShowQuantityLimitModal(true);
         return;
@@ -177,23 +173,22 @@ export default function ProductPage() {
       const result = await cartService.addToCart({
         productId: id,
         quantity: 1,
-        size: selectedSize
+        size: selectedSize,
       });
 
       if (result.success) {
-        window.location.href = '/user/checkout';
-      } else if (result.message.includes('Total quantity cannot exceed 5')) {
+        window.location.href = "/user/checkout";
+      } else if (result.message.includes("Total quantity cannot exceed 5")) {
         setShowQuantityLimitModal(true);
       } else {
-        setModalMessage(result.message || 'Failed to process order.');
+        setModalMessage(result.message || "Failed to process order.");
         setIsErrorModalOpen(true);
       }
-      
     } catch (err) {
-      if (err.message?.includes('Total quantity cannot exceed 5')) {
+      if (err.message?.includes("Total quantity cannot exceed 5")) {
         setShowQuantityLimitModal(true);
       } else {
-        setModalMessage(err.message || 'Failed to process. Please try again.');
+        setModalMessage(err.message || "Failed to process. Please try again.");
         setIsErrorModalOpen(true);
       }
     } finally {
@@ -211,21 +206,24 @@ export default function ProductPage() {
 
   const handleMouseMove = (e) => {
     if (imageRef.current) {
-      const { left, top, width, height } = imageRef.current.getBoundingClientRect();
+      const { left, top, width, height } =
+        imageRef.current.getBoundingClientRect();
       const x = ((e.pageX - left) / width) * 100;
       const y = ((e.pageY - top) / height) * 100;
       setPosition({ x, y });
     }
   };
 
-  const isOutOfStock = !product.availableSizes.some(size => size.quantity > 0);
+  const isOutOfStock = !product.availableSizes.some(
+    (size) => size.quantity > 0
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Image Section */}
         <div>
-          <div 
+          <div
             className="aspect-square bg-gray-100 rounded-lg overflow-hidden mb-4 relative"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -238,13 +236,13 @@ export default function ProductPage() {
               className="w-full h-full object-cover"
             />
             {showZoom && (
-              <div 
+              <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
                   backgroundImage: `url(${product.images[selectedImage]})`,
                   backgroundPosition: `${position.x}% ${position.y}%`,
-                  backgroundSize: '250%',
-                  backgroundRepeat: 'no-repeat'
+                  backgroundSize: "250%",
+                  backgroundRepeat: "no-repeat",
                 }}
               />
             )}
@@ -255,7 +253,7 @@ export default function ProductPage() {
                 key={index}
                 onClick={() => setSelectedImage(index)}
                 className={`border-2 rounded-md overflow-hidden ${
-                  selectedImage === index ? 'border-black' : 'border-gray-200'
+                  selectedImage === index ? "border-black" : "border-gray-200"
                 }`}
               >
                 <img
@@ -276,7 +274,7 @@ export default function ProductPage() {
               {product.category.CategoryName}
             </p>
           </div>
-          
+
           <div>
             <p className="text-xl">
               MRP: ₹ {product.salePrice}
@@ -287,7 +285,9 @@ export default function ProductPage() {
               )}
             </p>
             <p className="text-sm text-gray-500">incl. of taxes</p>
-            <p className="text-sm text-gray-500">(Also includes all applicable duties)</p>
+            <p className="text-sm text-gray-500">
+              (Also includes all applicable duties)
+            </p>
           </div>
 
           {/* Size Selection */}
@@ -303,11 +303,12 @@ export default function ProductPage() {
                     disabled={!isAvailable}
                     className={`
                       relative px-4 py-2 border rounded-md
-                      ${selectedSize === sizeObj.size
-                        ? 'border-black bg-black text-white'
-                        : !isAvailable
-                        ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'border-gray-300 hover:border-black'
+                      ${
+                        selectedSize === sizeObj.size
+                          ? "border-black bg-black text-white"
+                          : !isAvailable
+                          ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                          : "border-gray-300 hover:border-black"
                       }
                     `}
                   >
@@ -323,7 +324,10 @@ export default function ProductPage() {
             </div>
             {selectedSize && (
               <p className="mt-2 text-sm text-green-600">
-                Selected size: <span className="font-semibold">{selectedSize}</span>
+                Selected size:{" "}
+                <span className="font-semibold">{selectedSize}</span>
+                {" - "}
+                {product.availableSizes.find(size => size.size === selectedSize)?.quantity || 0} units left
               </p>
             )}
             {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
@@ -349,7 +353,10 @@ export default function ProductPage() {
               <h2 className="text-lg font-semibold mb-2">Tags</h2>
               <div className="flex flex-wrap gap-2">
                 {product.tags.map((tag, index) => (
-                  <span key={index} className="px-2 py-1 bg-gray-200 rounded-full text-sm">
+                  <span
+                    key={index}
+                    className="px-2 py-1 bg-gray-200 rounded-full text-sm"
+                  >
                     {tag}
                   </span>
                 ))}
@@ -357,49 +364,51 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Status */}
-          <div>
-            <p className={`text-sm font-semibold ${
-              isOutOfStock ? 'text-red-600' : 'text-green-600'
-            }`}>
-              Status: {isOutOfStock ? 'Out of Stock' : 'In Stock'}
-            </p>
-          </div>
-
           {/* Inactive Status */}
           {!product.isactive && (
-            <p className="text-sm text-red-500 mt-2">This product is currently inactive.</p>
+            <p className="text-sm text-red-500 mt-2">
+              This product is currently inactive.
+            </p>
           )}
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-4">
-            <button 
+            <button
               className={`w-full py-4 border border-black rounded-md ${
                 !isOutOfStock
-                  ? 'bg-black text-white hover:bg-gray-900'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ? "bg-black text-white hover:bg-gray-900"
+                  : "bg-gray-200 text-gray-500 cursor-not-allowed"
+              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
               onClick={handleAddToBag}
             >
-              {isLoading ? 'ADDING...' : isOutOfStock ? 'OUT OF STOCK' : 'ADD TO CART'}
+              {isLoading
+                ? "ADDING..."
+                : isOutOfStock
+                ? "OUT OF STOCK"
+                : "ADD TO CART"}
             </button>
-            <button 
+            <button
               className={`w-full py-4 bg-black text-white rounded-md ${
                 !isOutOfStock
-                  ? 'hover:bg-gray-900'
-                  : 'bg-gray-200 cursor-not-allowed'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ? "hover:bg-gray-900"
+                  : "bg-gray-200 cursor-not-allowed"
+              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
               onClick={handleBuyNow}
             >
-              {isLoading ? 'PROCESSING...' : isOutOfStock ? 'OUT OF STOCK' : 'BUY NOW'}
+              {isLoading
+                ? "PROCESSING..."
+                : isOutOfStock
+                ? "OUT OF STOCK"
+                : "BUY NOW"}
             </button>
           </div>
         </div>
       </div>
 
       {/* Modals */}
+
       <AnimatedCartModal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
@@ -419,13 +428,20 @@ export default function ProductPage() {
         onClose={() => setShowQuantityLimitModal(false)}
         maxQuantity={MAX_QUANTITY}
       />
+
+      {/* Related Products */}
       {relatedProducts.length > 0 && (
         <div className="mt-16 bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 rounded-lg shadow-inner">
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-8 text-center">Related Products</h2>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-8 text-center">
+              Related Products
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {relatedProducts.map((relatedProduct) => (
-                <div key={relatedProduct._id} className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:scale-105">
+                <div
+                  key={relatedProduct._id}
+                  className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:scale-105"
+                >
                   <ProductCard
                     id={relatedProduct._id}
                     name={relatedProduct.productName}

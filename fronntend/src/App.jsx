@@ -7,7 +7,7 @@ import Layout from "./authentication/user/Layout/Layout"
 import "./App.css"
 function App() {
   return (
-    <div>
+    <div >
       <BrowserRouter>
         <Toaster richColors position='top-right' />
         <Routes>

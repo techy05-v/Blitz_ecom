@@ -52,7 +52,7 @@ const HomePage = () => {
     <main className="flex-grow overflow-auto main-content">
       {/* Hero Section */}
       <section className="relative">
-        <div className="relative w-full h-screen">
+        <div className="relative w-full h-screen  ">
           <ImageCarousel images={bannerImages} showOverlay={true} />
           <div className="absolute inset-0 container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="relative z-10 w-full md:w-1/2 p-6 bg-white bg-opacity-5 backdrop-blur-lg rounded-xl shadow-xl">
