@@ -246,7 +246,7 @@ export default function ProductList() {
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 text-sm">
                       <p className="text-gray-900 whitespace-no-wrap">
-                        ${product.salePrice}
+                      ₹{product.salePrice}
                         {product.discountPercent > 0 && (
                           <span className="ml-2 text-xs text-green-500">
                             -{product.discountPercent}%

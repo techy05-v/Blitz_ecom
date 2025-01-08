@@ -6,6 +6,7 @@ import AnimatedCartModal from "../../confirmationModal/AnimatedCartModal";
 import QuantityLimitModal from "../../confirmationModal/QuantityLimitModal";
 import ProductCard from "../../authentication/user/ProductCard";
 import { fetchProducts } from "../../api/product";
+import { toast } from 'react-toastify';
 
 export default function ProductPage() {
   const { id } = useParams();
@@ -108,7 +109,14 @@ export default function ProductPage() {
 
   const handleAddToBag = async () => {
     if (!selectedSize) {
-      setError("Please select a size before adding to bag.");
+      toast.error("Please select a size before adding to bag.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
       return;
     }
 
@@ -155,7 +163,14 @@ export default function ProductPage() {
 
   const handleBuyNow = async () => {
     if (!selectedSize) {
-      setError("Please select a size before proceeding to buy.");
+      toast.error("Please select a size before proceeding to buy.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
       return;
     }
 
@@ -395,7 +410,7 @@ export default function ProductPage() {
                   : "bg-gray-200 cursor-not-allowed"
               } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
-              onClick={handleBuyNow}
+              // onClick={handleBuyNow}
             >
               {isLoading
                 ? "PROCESSING..."
@@ -408,7 +423,6 @@ export default function ProductPage() {
       </div>
 
       {/* Modals */}
-
       <AnimatedCartModal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
@@ -424,7 +438,8 @@ export default function ProductPage() {
       />
 
       <QuantityLimitModal
-        isOpen={showQuantityLimitModal}
+        isOpen
+={showQuantityLimitModal}
         onClose={() => setShowQuantityLimitModal(false)}
         maxQuantity={MAX_QUANTITY}
       />
@@ -450,6 +465,7 @@ export default function ProductPage() {
                     discountPercent={relatedProduct.discountPercent}
                     rating={relatedProduct.rating || 0}
                     reviewCount={relatedProduct.reviewCount || 0}
+                    availableSizes={relatedProduct.availableSizes || []}
                   />
                 </div>
               ))}

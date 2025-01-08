@@ -1,16 +1,17 @@
 const Cart = require("../model/cartSchema")
 const ProductSchema = require("../model/productSchema")
-
+const CategorySchema= require("../model/categorySchema")
 const addToCart = async(req,res)=>{
     try{
-        if (!req.user?.data?._id) {
+        console.log(req.user)
+        const userId = req?.user?.data?.id 
+        if (!userId) {
             return res.status(401).json({
                 success: false,
                 message: "User not authenticated"
             });
         }
         const {productId,quantity,size}=req.body
-        const userId = req.user.data._id 
 
         // Only check individual product quantity
         if(quantity > 5){
@@ -25,6 +26,21 @@ const addToCart = async(req,res)=>{
             return res.status(400).json({
                 success:false,
                 message:"Product not found"
+            })
+        }
+
+        if(!product.isactive){
+            return res.status(400).json({
+                success:false,
+                message:"this product is not available"
+            })
+        }
+
+        const category= await  CategorySchema.findById(product.category)
+        if(!category || !category.isactive){
+            return res.status(400).json({
+                success:false,
+                message:"this category is currently not available"
             })
         }
 
@@ -114,12 +130,13 @@ const addToCart = async(req,res)=>{
 // Rest of the controller functions remain the same
 const getCartItems = async(req,res)=>{
     try{
-        const userId = req.user.data._id
+        const userId = req.user.data.id
         console.log(userId)
         const cart = await Cart.findOne({user:userId})
         .populate({
             path: 'items.product',
-            select: 'productName  images description status'
+            select: 'productName  images description status',
+            match: { isactive: true }
         })
         if(!cart){
             return res.status(404).json({
@@ -131,6 +148,7 @@ const getCartItems = async(req,res)=>{
                 }
             })
         }
+        cart.items = cart.items.filter(item => item.product !== null);
         return res.status(200).json({
             success:true,
             message:"Cart items fetched successfully",
@@ -150,7 +168,7 @@ const getCartItems = async(req,res)=>{
 const updateCartItem = async (req, res) => {
     try {
         const { productId, quantity, size } = req.body;
-        const userId = req.user.data._id;
+        const userId = req.user.data.id;
 
         // Only validate individual product quantity
         if (quantity > 5) {
@@ -230,7 +248,7 @@ const updateCartItem = async (req, res) => {
 const removeCartItems = async(req,res)=>{
     try{
         const {productId,size}=req.body
-        const userId = req.user.data._id
+        const userId = req.user.data.id
 
         const cart = await Cart.findOne({user:userId})
         if(!cart){
@@ -266,7 +284,7 @@ const removeCartItems = async(req,res)=>{
 
 const clearCart = async(req,res)=>{
     try{
-        const userId = req.user.data._id
+        const userId = req.user.data.id
         const cart = await Cart.findOne({user:userId})
         if(!cart){
             return res.status(404).json({

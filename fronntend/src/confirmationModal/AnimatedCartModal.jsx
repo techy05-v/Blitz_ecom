@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckIcon, XCircleIcon } from '@heroicons/react/24/solid';
 
 const AnimatedCartModal = ({ isOpen, onClose, type = 'success', message }) => {
   const [animationClass, setAnimationClass] = useState('opacity-0 scale-95');
   const [iconClass, setIconClass] = useState('opacity-0 scale-0');
+  const navigate = useNavigate(); // Initialize useNavigate
 
   useEffect(() => {
     let timer;
@@ -18,6 +20,14 @@ const AnimatedCartModal = ({ isOpen, onClose, type = 'success', message }) => {
 
   const isSuccess = type === 'success';
   const Icon = isSuccess ? CheckIcon : XCircleIcon;
+
+  const handleButtonClick = () => {
+    if (isSuccess) {
+      navigate('/user/home'); // Navigate to home page
+    } else {
+      onClose(); // Close modal
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -34,7 +44,7 @@ const AnimatedCartModal = ({ isOpen, onClose, type = 'success', message }) => {
         </p>
         <div className="mt-6 flex items-center">
           {!isSuccess && <span className="text-2xl mr-2" role="img" aria-label="Sad face"></span>}
-          <button onClick={onClose} className={`${isSuccess ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} text-white font-medium py-2 px-6 rounded-md transition duration-300 flex items-center`}>
+          <button onClick={handleButtonClick} className={`${isSuccess ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} text-white font-medium py-2 px-6 rounded-md transition duration-300 flex items-center`}>
             {isSuccess ? 'Continue Shopping' : 'Close'}
           </button>
         </div>
@@ -44,4 +54,3 @@ const AnimatedCartModal = ({ isOpen, onClose, type = 'success', message }) => {
 };
 
 export default AnimatedCartModal;
-

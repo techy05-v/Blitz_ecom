@@ -50,7 +50,7 @@ const AddressSchema= new mongoose.Schema({
         type:Boolean,
         default:false
     },
-    landmar:{
+    landmark:{
         type:String,
     }
 })

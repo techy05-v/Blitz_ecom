@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useState, useEffect } from 'react'
 import { Edit2, Trash2 } from 'lucide-react'
 import { addressService } from '../../api/addressService/addressService'
@@ -12,6 +10,7 @@ const AddressManager = () => {
   const [error, setError] = useState(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [addressToDelete, setAddressToDelete] = useState(null)
+  const [errors, setErrors] = useState({})
   const [formData, setFormData] = useState({
     address_type: 'home',
     full_name: '',
@@ -44,16 +43,77 @@ const AddressManager = () => {
     }
   }
 
+  const validatePhoneNumber = (phone) => {
+    const phoneRegex = /^\+?[1-9]\d{9,11}$/;
+    return phoneRegex.test(phone);
+  };
+
+  const validatePostalCode = (postalCode) => {
+    const postalRegex = /^[0-9]{5,10}$/;
+    return postalRegex.test(postalCode);
+  };
+
+  const validateField = (name, value) => {
+    switch (name) {
+      case 'full_name':
+        return value.length >= 2 && value.length <= 50 ? '' : 'Name must be between 2 and 50 characters';
+      case 'phone_number':
+        return validatePhoneNumber(value) ? '' : 'Please enter a valid phone number';
+      case 'street_address':
+        return value.length >= 5 && value.length <= 100 ? '' : 'Street address must be between 5 and 100 characters';
+      case 'city':
+        return value.length >= 2 && value.length <= 50 ? '' : 'City must be between 2 and 50 characters';
+      case 'state':
+        return value.length >= 2 && value.length <= 50 ? '' : 'State must be between 2 and 50 characters';
+      case 'country':
+        return value.length >= 2 && value.length <= 50 ? '' : 'Country must be between 2 and 50 characters';
+      case 'postal_code':
+        return validatePostalCode(value) ? '' : 'Please enter a valid postal code (5-10 digits)';
+      default:
+        return '';
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
+    const newValue = type === 'checkbox' ? checked : value
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: newValue
     }))
+
+    if (type !== 'checkbox') {
+      const error = validateField(name, value)
+      setErrors(prev => ({
+        ...prev,
+        [name]: error
+      }))
+    }
   }
+
+  const validateForm = () => {
+    const newErrors = {};
+    Object.keys(formData).forEach(key => {
+      if (key !== 'apartment' && key !== 'landmark' && key !== 'is_default') {
+        const error = validateField(key, formData[key]);
+        if (error) {
+          newErrors[key] = error;
+        }
+      }
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (!validateForm()) {
+      toast.error('Please correct the errors in the form')
+      return
+    }
+
     setLoading(true)
     setError(null)
     
@@ -66,19 +126,7 @@ const AddressManager = () => {
       
       await fetchAddresses()
       
-      setFormData({
-        address_type: 'home',
-        full_name: '',
-        phone_number: '',
-        street_address: '',
-        apartment: '',
-        city: '',
-        state: '',
-        country: '',
-        postal_code: '',
-        is_default: false,
-        landmark: ''
-      })
+      resetForm()
       toast.success(editingId ? "Address updated successfully" : "Address added successfully")
       setEditingId(null)
     
@@ -89,9 +137,27 @@ const AddressManager = () => {
     }
   }
 
+  const resetForm = () => {
+    setFormData({
+      address_type: 'home',
+      full_name: '',
+      phone_number: '',
+      street_address: '',
+      apartment: '',
+      city: '',
+      state: '',
+      country: '',
+      postal_code: '',
+      is_default: false,
+      landmark: ''
+    })
+    setErrors({})
+  }
+
   const handleEdit = (address) => {
     setFormData(address)
     setEditingId(address._id)
+    setErrors({})
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -108,6 +174,7 @@ const AddressManager = () => {
       await addressService.deletAddress(addressToDelete._id)
       await fetchAddresses()
       toast.success("Address deleted successfully")
+      setIsDeleteModalOpen(false)
     } catch (err) {
       setError('Failed to delete address: ' + err.message)
     } finally {
@@ -115,6 +182,28 @@ const AddressManager = () => {
       setAddressToDelete(null)
     }
   }
+
+  const renderInput = (name, label, type = "text", required = true) => (
+    <div className="space-y-2">
+      <label htmlFor={name} className="block text-sm font-medium text-gray-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        type={type}
+        id={name}
+        name={name}
+        value={formData[name]}
+        onChange={handleInputChange}
+        required={required}
+        className={`mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm rounded-md ${
+          errors[name] ? 'border-red-500' : 'border-gray-300'
+        }`}
+      />
+      {errors[name] && (
+        <p className="mt-1 text-sm text-red-500">{errors[name]}</p>
+      )}
+    </div>
+  )
 
   if (loading && !addresses.length) {
     return (
@@ -150,7 +239,9 @@ const AddressManager = () => {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="address_type" className="block text-sm font-medium text-gray-700">Address Type</label>
+                  <label htmlFor="address_type" className="block text-sm font-medium text-gray-700">
+                    Address Type <span className="text-red-500">*</span>
+                  </label>
                   <select
                     id="address_type"
                     name="address_type"
@@ -164,120 +255,15 @@ const AddressManager = () => {
                   </select>
                 </div>
                 
-                <div className="space-y-2">
-                  <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">Full Name</label>
-                  <input
-                    type="text"
-                    id="full_name"
-                    name="full_name"
-                    value={formData.full_name}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700">Phone Number</label>
-                  <input
-                    type="tel"
-                    id="phone_number"
-                    name="phone_number"
-                    value={formData.phone_number}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="street_address" className="block text-sm font-medium text-gray-700">Street Address</label>
-                  <input
-                    type="text"
-                    id="street_address"
-                    name="street_address"
-                    value={formData.street_address}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="apartment" className="block text-sm font-medium text-gray-700">Apartment (optional)</label>
-                  <input
-                    type="text"
-                    id="apartment"
-                    name="apartment"
-                    value={formData.apartment}
-                    onChange={handleInputChange}
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="city" className="block text-sm font-medium text-gray-700">City</label>
-                  <input
-                    type="text"
-                    id="city"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="state" className="block text-sm font-medium text-gray-700">State</label>
-                  <input
-                    type="text"
-                    id="state"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="country" className="block text-sm font-medium text-gray-700">Country</label>
-                  <input
-                    type="text"
-                    id="country"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700">Postal Code</label>
-                  <input
-                    type="text"
-                    id="postal_code"
-                    name="postal_code"
-                    value={formData.postal_code}
-                    onChange={handleInputChange}
-                    required
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="landmark" className="block text-sm font-medium text-gray-700">Landmark (optional)</label>
-                  <input
-                    type="text"
-                    id="landmark"
-                    name="landmark"
-                    value={formData.landmark}
-                    onChange={handleInputChange}
-                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
+                {renderInput("full_name", "Full Name")}
+                {renderInput("phone_number", "Phone Number", "tel")}
+                {renderInput("street_address", "Street Address")}
+                {renderInput("apartment", "Apartment", "text", false)}
+                {renderInput("city", "City")}
+                {renderInput("state", "State")}
+                {renderInput("country", "Country")}
+                {renderInput("postal_code", "Postal Code")}
+                {renderInput("landmark", "Landmark", "text", false)}
 
                 <div className="flex items-center">
                   <input
@@ -297,7 +283,7 @@ const AddressManager = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? 'Processing...' : (editingId ? 'Update Address' : 'Add Address')}
                 </button>
@@ -306,19 +292,7 @@ const AddressManager = () => {
                     type="button"
                     onClick={() => {
                       setEditingId(null)
-                      setFormData({
-                        address_type: 'home',
-                        full_name: '',
-                        phone_number: '',
-                        street_address: '',
-                        apartment: '',
-                        city: '',
-                        state: '',
-                        country: '',
-                        postal_code: '',
-                        is_default: false,
-                        landmark: ''
-                      })
+                      resetForm()
                     }}
                     className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
@@ -395,4 +369,3 @@ const AddressManager = () => {
 }
 
 export default AddressManager
-

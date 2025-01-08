@@ -24,8 +24,10 @@ const JWT_SECRET =process.env.JWT_SECRET
 
 const getAllProductsByUser = async (req, res) => {
   try {
-    const { sort } = req.query;
+    const { sort,search } = req.query;
     let sortOption = {};
+    let searchQuery={}
+
     
     // Fix sort direction
     if (sort === "Low-High") {
@@ -33,8 +35,28 @@ const getAllProductsByUser = async (req, res) => {
     } else if (sort === "High-Low") {
       sortOption = { salePrice: -1 }; // descending order
     }
+    else if(sort==="A-Z"){
+        sortOption={productName:1}
+    }
+    else if(sort==="Z-A"){
+      sortOption={productName:-1}
+    }
+    // handle search
 
-    const products = await Product.find({ isactive: true })
+    if(search){
+      searchQuery={
+          $or:[
+            {productName:{$regex:search,$options:"i"}},
+            {descriptiion:{$regex:search,$options:"i"}}
+          ]
+      }
+    }
+
+    const finalQuery={
+      ...searchQuery,
+      isactive:true
+    }
+    const products = await Product.find(finalQuery)
       .populate({
         path: 'category',
         match: { isactive: true },

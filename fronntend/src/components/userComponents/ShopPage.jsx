@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Filter, Loader } from 'lucide-react';
+import { Filter, Loader, Search } from 'lucide-react';
+import { useLocation, useNavigate } from "react-router-dom";
 import ProductCard from "../../authentication/user/ProductCard";
 import { fetchProducts, fetchCategories } from "../../api/product";
 
@@ -10,6 +11,19 @@ export default function ShopPage() {
   const [error, setError] = useState(null);
   const [selectedCategories, setSelectedCategories] = useState(new Set());
   const [sortOrder, setSortOrder] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Parse search query from URL on component mount
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchParam = params.get('search');
+    if (searchParam) {
+      setSearchQuery(searchParam);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     async function loadData() {
@@ -35,14 +49,10 @@ export default function ShopPage() {
         }
         
         const [productsData, categoriesData] = await Promise.all([
-          fetchProducts(backendSortOrder),
+          fetchProducts(backendSortOrder, searchQuery),
           fetchCategories(),
         ]);
         
-        console.log('Processed Products Data:', productsData);
-        console.log('Processed Categories Data:', categoriesData);
-        
-        // Ensure we're setting an array
         setProducts(Array.isArray(productsData) ? productsData : []);
         setCategories(Array.isArray(categoriesData) ? categoriesData : []);
       } catch (err) {
@@ -56,7 +66,7 @@ export default function ShopPage() {
     }
   
     loadData();
-  }, [sortOrder]);
+  }, [sortOrder, searchQuery]);
 
   const handleCategoryChange = (categoryId) => {
     setSelectedCategories((prev) => {
@@ -70,25 +80,20 @@ export default function ShopPage() {
     });
   };
 
-  const sortProducts = (products) => {
-    const sortedProducts = [...products];
-    
-    switch(sortOrder) {
-      case "Price: Low to High":
-        return sortedProducts.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0));
-      case "Price: High to Low":
-        return sortedProducts.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0));
-      case "Name: A to Z":
-        return sortedProducts.sort((a, b) => 
-          (a.productName || "").localeCompare(b.productName || "")
-        );
-      case "Name: Z to A":
-        return sortedProducts.sort((a, b) => 
-          (b.productName || "").localeCompare(a.productName || "")
-        );
-      default:
-        return sortedProducts;
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) {
+      navigate(`/user/shop?search=${encodeURIComponent(trimmedQuery)}`);
+    } else {
+      navigate('/user/shop');
+      setSearchQuery('');
     }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    navigate('/user/shop');
   };
 
   if (loading) {
@@ -117,12 +122,9 @@ export default function ShopPage() {
     );
   }
 
-  const safeProducts = Array.isArray(products) ? products : [];
-  const filteredProducts = sortProducts(
-    safeProducts.filter(
-      (product) =>
-        selectedCategories.size === 0 || selectedCategories.has(product.category._id)
-    )
+  const filteredProducts = products.filter(
+    (product) =>
+      selectedCategories.size === 0 || selectedCategories.has(product.category._id)
   );
 
   return (
@@ -133,6 +135,8 @@ export default function ShopPage() {
           <aside className="w-full md:w-64 shrink-0">
             <div className="rounded-lg bg-white p-6 shadow-sm">
               <h2 className="mb-4 text-lg font-semibold">Filters</h2>
+
+              {/* Search Bar */}
 
               {/* Categories */}
               <div className="mb-6">
@@ -172,7 +176,6 @@ export default function ShopPage() {
                   <option value="Name: Z to A">Name: Z to A</option>
                   <option value="Price: Low to High">Price: Low to High</option>
                   <option value="Price: High to Low">Price: High to Low</option>
-                  <option value="Most Popular">Most Popular</option>
                 </select>
               </div>
               <span className="text-sm text-gray-600">
@@ -180,7 +183,7 @@ export default function ShopPage() {
               </span>
             </div>
 
-            {/* Products */}
+            {/* Products Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredProducts.map((product) => (
                 <ProductCard
@@ -190,6 +193,7 @@ export default function ShopPage() {
                   price={product.salePrice || 0}
                   images={product.images || []}
                   discountPercent={product.discountPercent || 0}
+                  availableSizes={product.availableSizes} 
                 />
               ))}
             </div>

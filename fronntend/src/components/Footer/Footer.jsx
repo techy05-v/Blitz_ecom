@@ -1,11 +1,7 @@
 import React from 'react';
-import gpay from "../../assets/gpay.jpg"
-import apple from  "../../assets/apple.jpg"
-import paypal from "../../assets/paypal.jpg"
-import matercard from "../../assets/matercard.jpg"
 function Footer() {
   return (
-    <footer className="bg-cyan-950 pt-16 pb-12 border-t border-gray-100">
+    <footer className="bg-black pt-16 pb-12 border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
           {/* Company Info */}
@@ -97,13 +93,6 @@ function Footer() {
         {/* Bottom Section */}
         <div className="mt-12 border-t border-gray-200 pt-8">
           <p className="text-sm text-gray-400">Shop.co © 2000-2023. All Rights Reserved</p>
-          <div className="mt-4 flex space-x-6">
-            <img src="/placeholder.svg?height=32&width=32" alt="Visa" className="h-8" />
-            <img src={matercard} alt="Mastercard" className="h-8" />
-            <img src={paypal} alt="PayPal" className="h-8" />
-            <img src={apple} alt="Apple Pay" className="h-8" />
-            <img src={gpay}alt="Google Pay" className="h-8" />
-          </div>
         </div>
       </div>
     </footer>

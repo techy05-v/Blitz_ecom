@@ -14,7 +14,7 @@ const unverifiedUserSchema = new mongoose.Schema({
     },
     phone_number:{
         type:String,
-        required:true
+        required:false
     },
     role:{
         type:String,

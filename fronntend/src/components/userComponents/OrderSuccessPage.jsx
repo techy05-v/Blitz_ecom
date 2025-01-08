@@ -31,7 +31,7 @@ const OrderSuccessPage = () => {
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">Order Details</h2>
             <div className="mb-4">
               <p className="text-gray-600">Order ID: <span className="font-semibold">{orderId}</span></p>
-              <p className="text-gray-600">Total Amount: <span className="font-semibold">${orderDetails.totalAmount.toFixed(2)}</span></p>
+              <p className="text-gray-600">Total Amount: <span className="font-semibold">₹{orderDetails.totalAmount.toFixed(2)}</span></p>
               <p className="text-gray-600">Payment Method: <span className="font-semibold">{orderDetails.paymentMethod}</span></p>
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Items Ordered</h3>

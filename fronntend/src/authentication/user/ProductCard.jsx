@@ -2,7 +2,17 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Star } from 'lucide-react';
 
-const ProductCard = ({ id, name, price, images, discountPercent, rating = 0, reviewCount = 0, isNew = false }) => {
+const ProductCard = ({ 
+  id, 
+  name, 
+  price, 
+  images, 
+  discountPercent, 
+  rating = 0, 
+  reviewCount = 0, 
+  isNew = false, 
+  availableSizes = [] 
+}) => {
   const discountedPrice = price != null && discountPercent != null
     ? price * (1 - discountPercent / 100)
     : price;
@@ -14,6 +24,13 @@ const ProductCard = ({ id, name, price, images, discountPercent, rating = 0, rev
   const formatPrice = (value) => {
     return value != null ? value.toFixed(2) : 'N/A';
   };
+
+  // Calculate total stock for this specific product
+  const totalStock = Array.isArray(availableSizes) 
+    ? availableSizes.reduce((sum, size) => sum + (size.quantity || 0), 0)
+    : 0;
+    
+  const isOutOfStock = totalStock === 0;
 
   return (
     <div className="group relative bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
@@ -35,6 +52,15 @@ const ProductCard = ({ id, name, price, images, discountPercent, rating = 0, rev
             New
           </div>
         )}
+        
+        {/* Stock Status Badge */}
+        <div className={`absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-semibold ${
+          isOutOfStock 
+            ? 'bg-red-500 text-white' 
+            : 'bg-green-500 text-white'
+        }`}>
+          {isOutOfStock ? 'Out of Stock' : `In Stock`}
+        </div>
       </div>
       
       <div className="p-4">
@@ -75,9 +101,13 @@ const ProductCard = ({ id, name, price, images, discountPercent, rating = 0, rev
       <div className="p-4 pt-0">
         <Link 
           to={`/user/product/${id}`}
-          className="block w-full text-center rounded-md bg-blue-600 py-2 px-3 text-sm font-medium text-white shadow-md transition duration-300 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className={`block w-full text-center rounded-md py-2 px-3 text-sm font-medium shadow-md transition duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+            isOutOfStock 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-green-300 hover:bg-blue-700 text-white focus:ring-blue-500'
+          }`}
         >
-          View Product
+          {isOutOfStock ? 'Out of Stock' : 'View Product'}
         </Link>
       </div>
     </div>
@@ -85,4 +115,3 @@ const ProductCard = ({ id, name, price, images, discountPercent, rating = 0, rev
 };
 
 export default ProductCard;
-

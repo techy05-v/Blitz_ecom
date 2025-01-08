@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import ProductCard from "./ProductCard";
 import { axiosInstance } from "../../api/axiosConfig";
 import banner from "../../assets/ujfhhhhhhhhhhhhhhhhhhhhhep.jpg";
@@ -9,7 +10,7 @@ import banner5 from "../../assets/b4.jpg";
 import banner6 from "../../assets/b5.webp";
 import ImageCarousel from "./Layout/ImageCarousel";
 
-const INITIAL_PRODUCT_COUNT = 8;
+const INITIAL_PRODUCT_COUNT = 4;
 
 const HomePage = () => {
   const [products, setProducts] = useState([]);
@@ -56,7 +57,7 @@ const HomePage = () => {
           <ImageCarousel images={bannerImages} showOverlay={true} />
           <div className="absolute inset-0 container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="relative z-10 w-full md:w-1/2 p-6 bg-white bg-opacity-5 backdrop-blur-lg rounded-xl shadow-xl">
-              <h2 className="text-4xl md:text-5xl font-extrabold text-black mb-4 leading-tight  text-transparent bg-clip-text bg-gradient-to-r from-cyan-900 to-black uppercase ">
+              <h2 className="text-4xl md:text-5xl font-extrabold text-black mb-4 leading-tight  text-transparent bg-clip-text bg-gradient-to-r from-white to-black-250 uppercase ">
                 Introducing the UltraFlex Runner
               </h2>
 
@@ -64,7 +65,7 @@ const HomePage = () => {
                 Experience unparalleled comfort and performance with our latest
                 innovation in running technology.
               </p>
-              <button className="bg-gradient-to-r from-black to-cyan-500 text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-lg hover:from-black hover:to-cyan-600 transition duration-300 ease-in-out transform hover:scale-105">
+              <button className="bg-black text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-lg hover:from-black hover:to-cyan-600 transition duration-300 ease-in-out transform hover:scale-105">
                 Shop Now
               </button>
             </div>
@@ -84,80 +85,76 @@ const HomePage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <h3 className="text-2xl font-semibold mb-8 text-center text-gray-800 font-mono">
-            Why Choose UltraFlex Runner?
+      <section className="py-16 bg-gradient-to-b from-gray-100 to-gray-50">
+        <div className="container mx-auto px-6 lg:px-12">
+          <h3 className="text-3xl font-bold mb-12 text-center text-gray-800 font-sans tracking-wide">
+            FEATURES
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
             {/* Card 1 */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg shadow-lg border border-gray-700 overflow-hidden transition transform hover:scale-105 max-w-[300px] mx-auto">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden transition-transform transform hover:scale-105 hover:shadow-xl">
               <img
                 src={banner2}
                 alt="Superior Comfort"
-                className="w-full aspect-[3/4] object-cover"
+                className="w-full h-56 object-cover"
               />
-              <div className="p-3">
-                <h4 className="font-semibold mb-2 text-gray-800 text-lg text-center">
+              <div className="p-6 text-center">
+                <h4 className="text-xl font-semibold text-gray-800 mb-2">
                   Superior Comfort
                 </h4>
-                <p className="text-gray-600 text-sm text-center">
-                  Our patented cushioning system provides all-day comfort for
-                  any activity.
+                <p className="text-gray-600 text-sm">
+                  Our patented cushioning system provides all-day comfort for any activity.
                 </p>
               </div>
             </div>
 
             {/* Card 2 */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg shadow-lg border border-gray-700 overflow-hidden transition transform hover:scale-105 max-w-[300px] mx-auto">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden transition-transform transform hover:scale-105 hover:shadow-xl">
               <img
-                src={banner3}
+                src="https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max"
                 alt="Lightweight Design"
-                className="w-full aspect-[3/4] object-cover"
+                className="w-full h-56 object-cover"
               />
-              <div className="p-3">
-                <h4 className="font-semibold mb-2 text-gray-800 text-lg text-center">
+              <div className="p-6 text-center">
+                <h4 className="text-xl font-semibold text-gray-800 mb-2">
                   Lightweight Design
                 </h4>
-                <p className="text-gray-600 text-sm text-center">
-                  Engineered to be incredibly light without compromising on
-                  durability.
+                <p className="text-gray-600 text-sm">
+                  Engineered to be incredibly light without compromising on durability.
                 </p>
               </div>
             </div>
 
             {/* Card 3 */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg shadow-lg border border-gray-700 overflow-hidden transition transform hover:scale-105 max-w-[300px] mx-auto">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden transition-transform transform hover:scale-105 hover:shadow-xl">
               <img
-                src={banner4}
+                src="https://thumblr.uniid.it/images/1702625644-ec84c8dd772f.jpegquality-100.jpg?width=640&format=webp&q=75"
                 alt="Eco-Friendly Materials"
-                className="w-full aspect-[3/4] object-cover"
+                className="w-full h-56 object-cover"
               />
-              <div className="p-3">
-                <h4 className="font-semibold mb-2 text-gray-800 text-lg text-center">
+              <div className="p-6 text-center">
+                <h4 className="text-xl font-semibold text-gray-800 mb-2">
                   Eco-Friendly Materials
                 </h4>
-                <p className="text-gray-600 text-sm text-center">
-                  Made with sustainable materials to reduce our environmental
-                  impact.
+                <p className="text-gray-600 text-sm">
+                  Made with sustainable materials to reduce our environmental impact.
                 </p>
               </div>
             </div>
 
             {/* Card 4 */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg shadow-lg border border-gray-700 overflow-hidden transition transform hover:scale-105 max-w-[300px] mx-auto">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden transition-transform transform hover:scale-105 hover:shadow-xl">
               <img
-                src={banner5}
+                src="https://images.prodirectsport.com/ProductImages/Main/1020570_Main_1845520.jpg"
                 alt="Durability"
-                className="w-full aspect-[3/4] object-cover "
+                className="w-full h-56 object-cover"
               />
-              <div className="p-3">
-                <h4 className="font-semibold mb-2 text-gray-800 text-lg text-center">
+              <div className="p-6 text-center">
+                <h4 className="text-xl font-semibold text-gray-800 mb-2">
                   Durability
                 </h4>
-                <p className="text-gray-600 text-sm text-center ">
-                  Built to withstand wear and tear, ensuring longevity and
-                  performance.
+                <p className="text-gray-600 text-sm">
+                  Built to withstand wear and tear, ensuring longevity and performance.
                 </p>
               </div>
             </div>
@@ -165,11 +162,12 @@ const HomePage = () => {
         </div>
       </section>
 
+
       {/* Products Section */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <h3 className="text-2xl font-semibold mb-8 text-center text-gray-800 font-mono">
-            Our Products
+            PRODUCTS
           </h3>
 
           {isLoading ? (
@@ -190,17 +188,18 @@ const HomePage = () => {
                     name={product?.productName}
                     price={product?.salePrice}
                     images={product?.images || []}
+                    availableSizes={product.availableSizes}
                   />
                 ))}
               </div>
-              {products.length > visibleProducts && (
+              {displayProducts.length >= 4 && (
                 <div className="mt-8 text-center">
-                  <button
-                    onClick={loadMoreProducts}
-                    className="bg-indigo-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-indigo-700 transition-transform"
+                  <Link
+                    to="/user/shop"
+                    className="bg-black text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-brown-700 transition-transform inline-block"
                   >
-                    Explore More
-                  </button>
+                    Explore
+                  </Link>
                 </div>
               )}
             </>
@@ -211,8 +210,34 @@ const HomePage = () => {
           )}
         </div>
       </section>
+
+      {/* Newsletter Section */}
+      <section className="py-16 bg-gray-100">
+        <div className="container mx-auto px-4">
+          <h3 className="text-2xl font-semibold mb-8 text-center text-gray-800 font-mono">
+            Subscribe to Our Newsletter
+          </h3>
+          <div className="max-w-md mx-auto">
+            <form className="flex flex-col sm:flex-row gap-4">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="flex-grow px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                required
+              />
+              <button
+                type="submit"
+                className="bg-black text-white py-2 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-300"
+              >
+                Subscribe
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
     </main>
   );
 };
 
 export default HomePage;
+

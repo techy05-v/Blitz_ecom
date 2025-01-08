@@ -8,18 +8,27 @@ import { Search, User, Heart, ShoppingCart, LogOut, Menu, X, Triangle } from 'lu
 const NavLink = ({ to, children }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
-  
+
   return (
     <Link
       to={to}
-      className={`${
-        isActive ? "text-cyan-400" : "text-white"
-      } hover:text-cyan-400 px-3 py-2 text-sm font-medium transition-colors duration-300`}
+      className={`${isActive ? "text-cyan-400" : "text-white"
+        } hover:text-cyan-400 px-3 py-2 text-sm font-medium transition-colors duration-300`}
     >
       {children}
     </Link>
   );
 };
+
+const NavIconLink = ({ to, ariaLabel, children, className }) => (
+  <Link
+    to={to}
+    className={`text-white hover:text-cyan-400 transition duration-300 ${className || ''}`}
+    aria-label={ariaLabel}
+  >
+    {children}
+  </Link>
+);
 
 const Navbar = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -28,7 +37,9 @@ const Navbar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const cartQuantity = useSelector(state => state.cart.totalQuantity);
-
+  const handleSearchChnage=(e)=>{
+    setSearchQuery(e.target.value)
+  }
   const handleLogout = () => {
     dispatch(userLogout());
     Cookies.remove("accessToken");
@@ -140,6 +151,23 @@ const Navbar = () => {
                   {link.label}
                 </Link>
               ))}
+              <div className="px-4 py-2">
+                <form onSubmit={handleSearch} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={handleSearchChnage}
+                    placeholder="Search products..."
+                    className="w-full rounded-lg bg-gray-700 px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 cursor-text"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-cyan-400 px-4 py-2 text-black hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         )}
@@ -151,7 +179,7 @@ const Navbar = () => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChnage}
                 placeholder="Search products..."
                 className="w-full pl-4 pr-10 py-2 border border-gray-700 rounded-lg focus:outline-none focus:border-cyan-400 bg-gray-900 text-white"
               />
@@ -169,14 +197,5 @@ const Navbar = () => {
   );
 };
 
-const NavIconLink = ({ to, ariaLabel, children, className }) => (
-  <Link
-    to={to}
-    className={`text-white hover:text-cyan-400 transition duration-300 ${className || ''}`}
-    aria-label={ariaLabel}
-  >
-    {children}
-  </Link>
-);
-
 export default Navbar;
+

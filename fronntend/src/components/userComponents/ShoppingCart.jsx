@@ -17,7 +17,8 @@ const CartPage = () => {
     setLoading(true);
     try {
       const response = await cartService.getCartItems();
-      setCartItems(response.cart.items);
+      console.log("++++",response)
+      setCartItems(response?.cart?.items);
     } catch (err) {
       toast.error('Failed to fetch cart items. Please try again later.');
     } finally {
@@ -141,7 +142,7 @@ const CartPage = () => {
                   <li key={`${item.product._id}-${item.size}`} className={`flex p-6 ${index !== 0 ? 'border-t border-gray-200' : ''}`}>
                     <div className="flex-shrink-0">
                       <img
-                        src={item.product.images[0]}
+                        src={item.product.images[0] || null}
                         alt={item.product.productName}
                         className="w-24 h-24 rounded-lg object-cover object-center sm:w-32 sm:h-32"
                       />

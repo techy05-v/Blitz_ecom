@@ -10,10 +10,18 @@ const handleAxiosError = (error) => {
   }
 };
 
-export async function fetchProducts(sortOrder) {
+export async function fetchProducts(sortOrder,searchQuery) {
     try {
       console.log('Fetching products...');
-      const response = await axiosInstance.get(`/user/products?sort=${sortOrder || ""}`);
+      const queryParams = new URLSearchParams();
+      if(sortOrder){
+        queryParams.append("sort",sortOrder);
+      }
+      if(searchQuery){
+        queryParams.append("search",searchQuery)
+      }
+      const url=`/user/products?${queryParams.toString()}`
+      const response = await axiosInstance.get(url);
       console.log('Full API Response:', response);
       
       // Assuming the products are in response.data.products

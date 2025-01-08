@@ -3,7 +3,7 @@ const addAddress = async(req,res)=>{
     try{
         console.log('User from auth middleware:', req.user); // Add this
         console.log('Request body:', req.body); // Add this
-        const userId=req.user.data._id;
+        const userId=req.user.data.id;
         if (!userId) {
             return res.status(400).json({
                 success: false,
@@ -85,7 +85,7 @@ const addAddress = async(req,res)=>{
 
 const editAddress = async (req, res) => {
     try {
-        const userId = req.user.data._id; // Changed to match JWT structure
+        const userId = req.user.data.id; // Changed to match JWT structure
         const addressId = req.params.id;
 
         // Validate addressId format
@@ -146,7 +146,7 @@ const editAddress = async (req, res) => {
 
 const deleteAddress = async (req, res) => {
     try {
-        const userId = req.user.data._id; // Changed to match JWT structure
+        const userId = req.user.data.id; // Changed to match JWT structure
         const addressId = req.params.id;
         // Validate addressId format
         if (!addressId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -197,7 +197,7 @@ const deleteAddress = async (req, res) => {
 
 const getAddresses = async (req, res) => {
     try {
-      const userId = req.user.data._id;
+      const userId = req.user.data.id;
       const addresses = await AddressSchema.find({ user: userId });
       res.status(200).json(addresses);
     } catch (error) {

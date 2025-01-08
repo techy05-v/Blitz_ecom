@@ -44,11 +44,11 @@ const UserDashboard = () => {
   const navigate = useNavigate();
 
   const dashboardItems = [
-    { title: 'Shopping Cart', icon: ShoppingCart, content: '3 items in your cart', link: '/user/cart', color: 'bg-pink-500' },
-    { title: 'Wishlist', icon: Heart, content: '5 items in your wishlist', link: '/user/wishlist', color: 'bg-purple-500' },
-    { title: 'Wallet', icon: Wallet, content: 'Balance: $250.00', link: '/user/wallet', color: 'bg-green-500' },
-    { title: 'Address', icon: MapPin, content: '123 Main St, Anytown, USA', link: '/user/address', color: 'bg-yellow-500' },
-    { title: 'Account Details', icon: User, content: 'John Doe', link: '/user/account', color: 'bg-blue-500' },
+    { title: 'Shopping Cart', icon: ShoppingCart, content: '', link: '/user/cart', color: 'bg-pink-500' },
+    { title: 'Wishlist', icon: Heart, content: '', link: '/user/wishlist', color: 'bg-purple-500' },
+    { title: 'Wallet', icon: Wallet, content: 'Balance: ₹250.00', link: '/user/wallet', color: 'bg-green-500' },
+    { title: 'Address', icon: MapPin, content: '', link: '/user/address', color: 'bg-yellow-500' },
+    { title: 'Account Details', icon: User, content: '', link: '/user/account', color: 'bg-blue-500' },
   ];
 
   const orders = [
@@ -69,8 +69,6 @@ const UserDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card className="bg-indigo-600 text-white col-span-full">
             <h2 className="text-xl font-semibold mb-2">Dashboard</h2>
-            <p className="text-indigo-100">Welcome back, John Doe!</p>
-            <p className="text-sm text-indigo-200 mt-2">Last login: 2 days ago</p>
           </Card>
           
           {dashboardItems.map((item, index) => (

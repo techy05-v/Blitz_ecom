@@ -4,6 +4,8 @@ import { addressService } from "../../api/addressService/addressService";
 import cartService from "../../api/cartService/cartService";
 import orderService from "../../api/orderService/orderService";
 import { toast } from "sonner";
+import { CreditCard, Wallet, DollarSign, Plus } from 'lucide-react';
+import AddressFormModal from "../../confirmationModal/AddressModal";
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -13,6 +15,7 @@ const CheckoutPage = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [orderSummary, setOrderSummary] = useState({
     subtotal: 0,
     tax: 0,
@@ -21,9 +24,9 @@ const CheckoutPage = () => {
   });
 
   const paymentMethods = [
-    { id: "card", name: "Credit/Debit Card", icon: "💳" },
-    { id: "cash_on_delivery", name: "Cash on Delivery", icon: "💵" },
-    { id: "upi", name: "UPI", icon: "📱" },
+    { id: "razorpay", name: "Razor Pay", icon: CreditCard },
+    { id: "wallet", name: "Wallet Pay", icon: Wallet },
+    { id: "cash_on_delivery", name: "Cash on Delivery", icon: DollarSign },
   ];
 
   useEffect(() => {
@@ -34,36 +37,21 @@ const CheckoutPage = () => {
       setError(null);
 
       try {
-        // Fetch addresses
-        console.log("Fetching addresses...");
         const addressResponse = await addressService.getAllAddress();
-        console.log("Address response:", addressResponse);
-
-        // Handle the array response directly
-        const addressArray = Array.isArray(addressResponse)
-          ? addressResponse
-          : [];
-
-        // Fetch cart items
-        console.log("Fetching cart items...");
         const cartResponse = await cartService.getCartItems();
-        console.log("Cart response:", cartResponse);
 
-        // Validate cart response
         if (!cartResponse || !cartResponse.success || !cartResponse.cart) {
           throw new Error("Invalid cart response format");
         }
 
-        // Extract cart items - adjust this path based on your actual response structure
         const cartItemsArray = cartResponse.cart.items || [];
 
         if (isMounted) {
-          setAddresses(addressArray);
+          setAddresses(Array.isArray(addressResponse) ? addressResponse : []);
           setCartItems(cartItemsArray);
 
-          // Set default selected address if available
-          if (addressArray.length > 0) {
-            setSelectedAddress(addressArray[0]);
+          if (addressResponse.length > 0) {
+            setSelectedAddress(addressResponse[0]);
           }
 
           calculateOrderSummary(cartItemsArray);
@@ -104,12 +92,7 @@ const CheckoutPage = () => {
     const shipping = 5.0;
     const total = subtotal + tax + shipping;
 
-    setOrderSummary({
-      subtotal,
-      tax,
-      shipping,
-      total,
-    });
+    setOrderSummary({ subtotal, tax, shipping, total });
   };
 
   const handleSubmit = async (e) => {
@@ -148,28 +131,24 @@ const CheckoutPage = () => {
 
       const response = await orderService.createOrder(orderData);
 
-      // Check if response exists and has the expected order data
       if (response && response.order && response.order._id) {
         await cartService.clearCart();
         toast.success("Order placed successfully!");
         
-        // First ensure the toast is shown
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Then navigate to the success page
         navigate("/user/success", { 
           state: { 
             orderId: response.order._id,
             orderDetails: response.order 
           },
-          replace: true // This prevents going back to checkout page
+          replace: true
         });
       } else {
         throw new Error(response.message || "Invalid order response");
       }
     } catch (error) {
       console.error("Order creation failed:", error);
-      // Handle specific error cases
       if (error.response?.status === 400) {
         toast.error(error.response.data.message || "Invalid order data");
       } else if (error.response?.status === 500) {
@@ -181,6 +160,20 @@ const CheckoutPage = () => {
       setLoading(false);
     }
   };
+
+  const handleAddressAdded = async () => {
+    try {
+      const updatedAddresses = await addressService.getAllAddress();
+      setAddresses(Array.isArray(updatedAddresses) ? updatedAddresses : []);
+      if (updatedAddresses.length > 0 && !selectedAddress) {
+        setSelectedAddress(updatedAddresses[0]);
+      }
+    } catch (error) {
+      console.error("Error fetching updated addresses:", error);
+      toast.error("Failed to update address list");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-10">
@@ -208,7 +201,7 @@ const CheckoutPage = () => {
               <p className="text-gray-600">{error}</p>
               <button
                 onClick={() => window.location.reload()}
-                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
               >
                 Try Again
               </button>
@@ -232,8 +225,8 @@ const CheckoutPage = () => {
                 Please add a delivery address to continue checkout.
               </p>
               <button
-                onClick={() => navigate("/address/add")}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                onClick={() => setIsAddressModalOpen(true)}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
               >
                 Add New Address
               </button>
@@ -258,7 +251,7 @@ const CheckoutPage = () => {
               </p>
               <button
                 onClick={() => navigate("/user/shop")}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
               >
                 Continue Shopping
               </button>
@@ -273,16 +266,12 @@ const CheckoutPage = () => {
     <div className="min-h-screen bg-gray-50 py-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white shadow-md rounded-lg p-8">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6">Checkout</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-8">Checkout</h1>
 
-          <form
-            onSubmit={handleSubmit}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-          >
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
-              {/* Delivery Address Section */}
               <section className="mb-8">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
+                <h2 className="text-xl font-semibold text-gray-700 mb-4">
                   Delivery Address
                 </h2>
                 <div className="space-y-4">
@@ -308,12 +297,19 @@ const CheckoutPage = () => {
                       </p>
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setIsAddressModalOpen(true)}
+                    className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <Plus className="inline-block w-5 h-5 mr-2" />
+                    Add New Address
+                  </button>
                 </div>
               </section>
 
-              {/* Payment Method Section */}
               <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
+                <h2 className="text-xl font-semibold text-gray-700 mb-4">
                   Payment Method
                 </h2>
                 <div className="space-y-4">
@@ -328,7 +324,7 @@ const CheckoutPage = () => {
                       onClick={() => setSelectedPaymentMethod(method)}
                     >
                       <div className="flex items-center">
-                        <span className="text-xl mr-2">{method.icon}</span>
+                        <method.icon className="w-6 h-6 mr-3 text-gray-600" />
                         <div>
                           <p className="font-semibold text-gray-800">
                             {method.name}
@@ -346,9 +342,8 @@ const CheckoutPage = () => {
               </section>
             </div>
 
-            {/* Order Summary Section */}
             <div className="bg-gray-50 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-700 mb-4">
+              <h2 className="text-xl font-semibold text-gray-700 mb-4">
                 Order Summary
               </h2>
               <div className="space-y-4">
@@ -357,33 +352,33 @@ const CheckoutPage = () => {
                     <span className="text-gray-800">
                       {item.product.name} ({item.size}) x {item.quantity}
                     </span>
-                    <span className="text-gray-800">
-                      ${(item.discountedPrice * item.quantity).toFixed(2)}
+                    <span className="text-gray-800 font-medium">
+                      ₹{(item.discountedPrice * item.quantity).toFixed(2)}
                     </span>
                   </div>
                 ))}
                 <div className="border-t pt-4 mt-4">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal</span>
-                    <span className="text-gray-800">
-                      ${orderSummary.subtotal.toFixed(2)}
+                    <span className="text-gray-800 font-medium">
+                      ₹{orderSummary.subtotal.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax (8%)</span>
-                    <span className="text-gray-800">
-                      ${orderSummary.tax.toFixed(2)}
+                    <span className="text-gray-800 font-medium">
+                      ₹{orderSummary.tax.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Shipping</span>
-                    <span className="text-gray-800">
-                      ${orderSummary.shipping.toFixed(2)}
+                    <span className="text-gray-800 font-medium">
+                      ₹{orderSummary.shipping.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between font-semibold text-lg mt-4">
                     <span>Total</span>
-                    <span>${orderSummary.total.toFixed(2)}</span>
+                    <span>₹{orderSummary.total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -391,9 +386,7 @@ const CheckoutPage = () => {
               <div className="mt-6">
                 <button
                   type="submit"
-                  disabled={
-                    !selectedAddress || !selectedPaymentMethod || loading
-                  }
+                  disabled={!selectedAddress || !selectedPaymentMethod || loading}
                   className={`w-full py-3 rounded-lg transition-colors focus:outline-none ${
                     !selectedAddress || !selectedPaymentMethod || loading
                       ? "bg-gray-400 cursor-not-allowed"
@@ -407,8 +400,14 @@ const CheckoutPage = () => {
           </form>
         </div>
       </div>
+      <AddressFormModal
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        onAddressAdded={handleAddressAdded}
+      />
     </div>
   );
 };
 
 export default CheckoutPage;
+

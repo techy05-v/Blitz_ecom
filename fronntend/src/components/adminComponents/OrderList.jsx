@@ -81,7 +81,7 @@ function AdminOrderList() {
                   <td className="text-left py-3 px-4">#{order._id}</td>
                   <td className="text-left py-3 px-4">{order.user.user_name}</td>
                   <td className="text-left py-3 px-4">{new Date(order.createdAt).toLocaleDateString()}</td>
-                  <td className="text-left py-3 px-4">${order.totalAmount.toFixed(2)}</td>
+                  <td className="text-left py-3 px-4">₹{order.totalAmount.toFixed(2)}</td>
                   <td className="text-left py-3 px-4">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       order.orderStatus === 'Delivered' ? 'bg-green-100 text-green-800' :
