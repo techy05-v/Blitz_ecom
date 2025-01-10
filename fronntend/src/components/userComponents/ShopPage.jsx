@@ -12,7 +12,7 @@ export default function ShopPage() {
   const [selectedCategories, setSelectedCategories] = useState(new Set());
   const [sortOrder, setSortOrder] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  
+  const [wishlistItems,setWishlistItems]=useState("")
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -95,6 +95,15 @@ export default function ShopPage() {
     setSearchQuery('');
     navigate('/user/shop');
   };
+
+  const handleWishlistUpdate=async(productId,isWishlisted)=>{
+    if(isWishlisted){
+      setWishlistItems(prev=>[...prev,productId])
+    }
+    else[
+      setWishlistItems(prev=>prev.filter(id=>id!==productId))
+    ]
+  }
 
   if (loading) {
     return (
@@ -190,10 +199,12 @@ export default function ShopPage() {
                   key={product._id}
                   id={product._id}
                   name={product.productName || "Unnamed Product"}
-                  price={product.salePrice || 0}
+                  price={product.regularPrice || 0}
                   images={product.images || []}
                   discountPercent={product.discountPercent || 0}
                   availableSizes={product.availableSizes} 
+                  isInWishlist={wishlistItems.includes(product.id)}
+                  onWishlistUpdate={handleWishlistUpdate}
                 />
               ))}
             </div>

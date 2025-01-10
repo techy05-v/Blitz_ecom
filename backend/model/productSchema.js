@@ -1,5 +1,6 @@
 // productSchema.js
 const mongoose = require('mongoose');
+const { type } = require('os');
 
 const productSchema = new mongoose.Schema(
   {
@@ -22,14 +23,22 @@ const productSchema = new mongoose.Schema(
       type: String, 
       required: true 
     },
-    salePrice: { 
+    regularPrice: { 
       type: Number, 
       required: true 
+    },
+    salePrice:{
+      type:Number,
+      required:true
     },
     discountPercent: { 
       type: Number, 
       default: 0 
     },
+    offers:[{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"Offer"
+    }],
     availableSizes: [
       {
         size: { 

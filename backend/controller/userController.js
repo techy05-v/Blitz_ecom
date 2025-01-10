@@ -31,9 +31,9 @@ const getAllProductsByUser = async (req, res) => {
     
     // Fix sort direction
     if (sort === "Low-High") {
-      sortOption = { salePrice: 1 };  // ascending order
+      sortOption = { regularPrice: 1 };  // ascending order
     } else if (sort === "High-Low") {
-      sortOption = { salePrice: -1 }; // descending order
+      sortOption = { regularPrice: -1 }; // descending order
     }
     else if(sort==="A-Z"){
         sortOption={productName:1}

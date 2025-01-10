@@ -13,6 +13,12 @@ const categorySchema = new mongoose.Schema({
     type: Date, 
     default: Date.now 
   },
+  offers:[
+    {
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"Offer"
+    }
+  ],
   isactive: { 
     type: Boolean, 
     default: true 

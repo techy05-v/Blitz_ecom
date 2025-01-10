@@ -15,7 +15,7 @@ const AddProduct = () => {
     category: '',
     images: ['', '', '', ''],
     description: '',
-    salePrice: '',
+    regularPrice: '',
     discountPercent: 0,
     availableSizes: [{ size: '', quantity: 0 }],
     color: '',
@@ -140,7 +140,7 @@ const AddProduct = () => {
       ...formData,
       availableSizes: formData.availableSizes.filter(size => size.size && size.quantity > -1),
       images: formData.images.filter(Boolean),
-      salePrice: parseFloat(formData.salePrice),
+      regularPrice: parseFloat(formData.regularPrice),
     };
 
     try {
@@ -254,8 +254,8 @@ const AddProduct = () => {
           <label className="block mb-1">Sale Price</label>
           <input
             type="number"
-            name="salePrice"
-            value={formData.salePrice}
+            name="regularPrice"
+            value={formData.regularPrice}
             onChange={handleInputChange}
             required
             min="0"

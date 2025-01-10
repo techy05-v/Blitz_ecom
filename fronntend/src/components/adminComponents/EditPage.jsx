@@ -17,7 +17,7 @@ const EditProduct = () => {
     category: '',
     images: ['', '', '', ''],
     description: '',
-    salePrice: '',
+    regularPrice: '',
     discountPercent: 0,
     availableSizes: [{ size: '', quantity: 0 }],
     color: '',
@@ -286,8 +286,8 @@ const EditProduct = () => {
           <label className="block mb-1">Sale Price</label>
           <input
             type="number"
-            name="salePrice"
-            value={formData.salePrice}
+            name="regularPrice"
+            value={formData.regularPrice}
             onChange={handleInputChange}
             required
             min="0"

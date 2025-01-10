@@ -7,7 +7,7 @@ const {addAddress,editAddress,deleteAddress,getAddresses}= require("../controlle
 const{addToCart,getCartItems ,clearCart ,removeCartItems,updateCartItem }=require("../controller/cartController")
 const{createOrder,getUserOrders,cancelOrder,getOrderDetails,}=require("../controller/orderController")
 const { createProfile, getProfile, updateProfile, deleteProfileImage } = require("../controller/profileController");
-
+const {addToWishlist,getWishlist,clearWishlist,removeFromWishlist}= require("../controller/wishlistController")
 // userRoute.post("/signup",userSignUp)
 // userRoute.post("/login",userLogin)
 
@@ -48,3 +48,15 @@ userRoute.post("/profile/create", verifyUser, createProfile);
 userRoute.get("/profileget", verifyUser, getProfile); 
 userRoute.put("/profile", verifyUser, updateProfile);
 userRoute.delete("/profile/image", verifyUser, deleteProfileImage)
+
+
+
+// wishlist
+
+
+userRoute.post("/add",verifyUser,addToWishlist);
+userRoute.delete("/remove/:productId",verifyUser,removeFromWishlist)
+userRoute.get("/getwishlist",verifyUser,getWishlist)
+userRoute.delete("/clearwishlist",verifyUser,clearWishlist);
+
+

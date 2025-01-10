@@ -15,7 +15,7 @@ export default function ProductPage() {
     category: { CategoryName: "" },
     images: [],
     description: "",
-    salePrice: 0,
+    regularPrice: 0,
     discountPercent: 0,
     availableSizes: [],
     color: "",
@@ -292,7 +292,7 @@ export default function ProductPage() {
 
           <div>
             <p className="text-xl">
-              MRP: ₹ {product.salePrice}
+              MRP: ₹ {product.regularPrice}
               {product.discountPercent > 0 && (
                 <span className="text-sm text-green-600 ml-2">
                   ({product.discountPercent}% OFF)
@@ -460,7 +460,7 @@ export default function ProductPage() {
                   <ProductCard
                     id={relatedProduct._id}
                     name={relatedProduct.productName}
-                    price={relatedProduct.salePrice}
+                    price={relatedProduct.regularPrice}
                     images={relatedProduct.images}
                     discountPercent={relatedProduct.discountPercent}
                     rating={relatedProduct.rating || 0}

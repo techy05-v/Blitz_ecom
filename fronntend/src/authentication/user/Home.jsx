@@ -17,8 +17,9 @@ const HomePage = () => {
   const [visibleProducts, setVisibleProducts] = useState(INITIAL_PRODUCT_COUNT);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const bannerImages = [banner, banner2, banner3, banner4, banner5, banner6];
-  const productImages = [banner, banner2, banner3, banner4, banner5, banner6];
+  const bannerImages = ["https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max", banner2, "https://pbs.twimg.com/media/EHtzxsfWoAAmESM.jpg"];
+  const productImages = ["https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max", banner2, "https://pbs.twimg.com/media/EHtzxsfWoAAmESM.jpg"];
+  const [wishlistItems, setWishlistItems] = useState([]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -45,6 +46,13 @@ const HomePage = () => {
     setVisibleProducts((prevCount) => prevCount + INITIAL_PRODUCT_COUNT);
   };
 
+  const handleWishlistUpdate = async (productId, isWishlisted) => {
+    if (isWishlisted) {
+      setWishlistItems(prev => [...prev, productId]);
+    } else {
+      setWishlistItems(prev => prev.filter(id => id !== productId));
+    }
+  };
   const displayProducts = Array.isArray(products)
     ? products.slice(0, visibleProducts)
     : [];
@@ -186,9 +194,11 @@ const HomePage = () => {
                     key={product?._id}
                     id={product?._id}
                     name={product?.productName}
-                    price={product?.salePrice}
+                    price={product?.regularPrice}
                     images={product?.images || []}
                     availableSizes={product.availableSizes}
+                    isInWishlist={wishlistItems.includes(products.id)}
+                    onWishlistUpdate={handleWishlistUpdate}
                   />
                 ))}
               </div>

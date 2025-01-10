@@ -70,7 +70,7 @@ const addToCart = async(req,res)=>{
             })
         }
 
-        const price = product.salePrice;
+        const price = product.regularPrice;
         const discountedPrice = price-(price*(product.discountPercent/100));
 
         // Check if item already exists in cart
