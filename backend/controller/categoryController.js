@@ -59,9 +59,13 @@ const getAllCategories = async (req, res) => {
     const totalPages = Math.ceil(totalCategories / limit);
 
     const categories = await Category.find({})
+      .populate({
+        path: 'offers',
+        select: 'name discountPercent startDate endDate' // specify fields you want
+      })
       .skip(skipIndex)
       .limit(limit)
-      .sort({ createdAt: -1 }); // Optional: sort by most recent
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       categories,

@@ -9,7 +9,9 @@ import {
 } from "react-icons/fa";
 import { toast } from 'sonner';
 import CategoryService from '../../api/categoryServices/categoryService';
+import offerApi from "../../api/offer/offerApi";
 import ConfirmationModal from '../../confirmationModal/ConfirmationMadal';
+import AddEditOfferModal from "../../confirmationModal/CategoryOfferModal";
 
 function CategoryList() {
   const location = useLocation();
@@ -31,6 +33,10 @@ function CategoryList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState({ type: '', id: null });
 
+  // Offer modal state
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
   // Load categories with pagination
   const loadCategories = async (page = 1, limit = 10) => {
     try {
@@ -41,7 +47,7 @@ function CategoryList() {
         totalPages, 
         totalCategories 
       } = await CategoryService.fetchCategories(page, limit);
-      
+      console.log(categories)
       setCategories(categories);
       setCurrentPage(currentPage);
       setTotalPages(totalPages);
@@ -102,6 +108,40 @@ function CategoryList() {
       await handleToggleStatus(modalAction.id);
     }
   };
+
+  const openOfferModal = (category) => {
+    setSelectedCategory(category);
+    setOfferModalOpen(true);
+  };
+
+  const closeOfferModal = () => {
+    setSelectedCategory(null);
+    setOfferModalOpen(false);
+  };
+
+  const handleOfferSubmit = async (offerData) => {
+    try {
+      if (offerData._id) {
+        // Edit existing offer
+        await offerApi.editOffer(offerData._id, offerData);
+        toast.success("Offer updated successfully");
+      } else {
+        // Add new offer
+        await offerApi.createOffer({
+          ...offerData,
+          targetId: selectedCategory._id,
+          targetType: 'category'
+        });
+        toast.success("Offer added successfully");
+      }
+      closeOfferModal();
+      loadCategories(currentPage); // Reload the current page to show updated data
+    } catch (error) {
+      toast.error("Failed to save offer");
+      console.error("Failed to save offer:", error);
+    }
+  };
+
 
   // Render loading spinner
   const renderLoadingSpinner = () => (
@@ -248,6 +288,13 @@ function CategoryList() {
                       <FaEdit className="mr-1" /> Edit
                     </button>
                     <button
+                      onClick={() => openOfferModal(category)}
+                      className="text-green-600 hover:text-green-800 transition duration-150 flex items-center"
+                      disabled={processingIds.includes(category._id)}
+                    >
+                      <FaPlus className="mr-1" /> {category.offer ? "Edit Offer" : "Add Offer"}
+                    </button>
+                    <button
                       onClick={() => openModal('toggleStatus', category._id)}
                       className={`${
                         category.isactive
@@ -285,7 +332,6 @@ function CategoryList() {
           <Link
             to="/admin/category/add"
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-            onClick={() => toast.info("Adding new category")}
           >
             <FaPlus className="mr-2" />
             Add Category
@@ -308,9 +354,14 @@ function CategoryList() {
         title={`Confirm ${modalAction.type === 'edit' ? 'Edit' : 'Status Change'}`}
         message={`Are you sure you want to ${modalAction.type === 'edit' ? 'edit' : 'change the status of'} this category?`}
       />
+      <AddEditOfferModal
+        isOpen={offerModalOpen}
+        onClose={closeOfferModal}
+        onSubmit={handleOfferSubmit}
+        category={selectedCategory}
+      />
     </div>
   );
 }
 
 export default CategoryList;
-

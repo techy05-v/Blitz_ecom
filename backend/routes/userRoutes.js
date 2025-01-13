@@ -8,10 +8,12 @@ const{addToCart,getCartItems ,clearCart ,removeCartItems,updateCartItem }=requir
 const{createOrder,getUserOrders,cancelOrder,getOrderDetails,}=require("../controller/orderController")
 const { createProfile, getProfile, updateProfile, deleteProfileImage } = require("../controller/profileController");
 const {addToWishlist,getWishlist,clearWishlist,removeFromWishlist}= require("../controller/wishlistController")
-// userRoute.post("/signup",userSignUp)
-// userRoute.post("/login",userLogin)
-
-// userRoute.post("/verifyOtp",verifyOtp)
+const {
+    getActiveOffers,
+    getProductOffers,
+    getCategoryOffers,
+} = require('../controller/offerController');
+const {applyCoupon,validateCoupon,listCoupons} =require("../controller/couponController")
 userRoute.post("/google",googleAuth)
 userRoute.get("/product/:id", verifyUser,getProductById)
 userRoute.get("/products",verifyUser,getAllProductsByUser)
@@ -58,5 +60,15 @@ userRoute.post("/add",verifyUser,addToWishlist);
 userRoute.delete("/remove/:productId",verifyUser,removeFromWishlist)
 userRoute.get("/getwishlist",verifyUser,getWishlist)
 userRoute.delete("/clearwishlist",verifyUser,clearWishlist);
+
+// user-offer
+userRoute.get('/offers/active', verifyUser, getActiveOffers);
+userRoute.get('/offers/product/:productId', verifyUser, getProductOffers);
+userRoute.get('/offers/category/:categoryId', verifyUser, getCategoryOffers);
+
+userRoute.post("/applycoupon",verifyUser,applyCoupon)
+userRoute.post("/validate",verifyUser,validateCoupon)
+userRoute.get("/listcopons",verifyUser,listCoupons)
+
 
 

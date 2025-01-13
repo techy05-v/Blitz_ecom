@@ -2,10 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FaPlus, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import ProductService from "../../api/productService/productService";
+import offerApi from "../../api/offer/offerApi";
 import { toast } from "react-toastify";
 import ConfirmationModal from "../../confirmationModal/ConfirmationMadal";
+import AddEditOfferModal from "../../confirmationModal/AddOffer";
 
-export default function ProductList() {
+const ProductList = () => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,6 +19,8 @@ export default function ProductList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState({ type: "", id: null });
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   useEffect(() => {
     const page = parseInt(searchParams.get("page")) || 1;
@@ -30,6 +34,7 @@ export default function ProductList() {
     try {
       setIsLoading(true);
       const response = await ProductService.getAllProducts(page, limit);
+      console.log('Fetched products:', response.products); // Debug log
       setProducts(response.products);
       setTotalPages(response.totalPages);
       setTotalItems(response.total);
@@ -40,6 +45,7 @@ export default function ProductList() {
       setIsLoading(false);
     }
   };
+  
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -96,6 +102,43 @@ export default function ProductList() {
     }
   };
 
+  const openOfferModal = (product) => {
+    setSelectedProduct(product);
+    setOfferModalOpen(true);
+  };
+
+  const closeOfferModal = () => {
+    setSelectedProduct(null);
+    setOfferModalOpen(false);
+  };
+
+  const handleOfferSubmit = async (offerData) => {
+    try {
+      let response;
+      if (offerData._id) {
+        // Edit existing offer
+        response = await offerApi.editOffer(offerData._id, offerData);
+        toast.success("Offer updated successfully");
+      } else {
+        // Add new offer
+        const completeOfferData = {
+          ...offerData,
+          targetId: selectedProduct._id,
+          targetType: 'product'
+        };
+        response = await offerApi.createOffer(completeOfferData);
+        toast.success("Offer added successfully");
+      }
+      closeOfferModal();
+      
+      // Ensure we're getting fresh data after offer changes
+      await fetchProducts(currentPage, itemsPerPage);
+    } catch (error) {
+      toast.error("Failed to save offer");
+      console.error("Failed to save offer:", error);
+    }
+  };
+
   const Pagination = () => (
     <div className="flex flex-col items-center space-y-4 mt-6">
       <div className="flex items-center space-x-4">
@@ -131,7 +174,6 @@ export default function ProductList() {
 
         {[...Array(totalPages)].map((_, index) => {
           const pageNumber = index + 1;
-          // Show first page, last page, current page, and one page before and after current
           if (
             pageNumber === 1 ||
             pageNumber === totalPages ||
@@ -246,7 +288,7 @@ export default function ProductList() {
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 text-sm">
                       <p className="text-gray-900 whitespace-no-wrap">
-                      ₹{product.salePrice}
+                        ₹{product.salePrice}
                         {product.discountPercent > 0 && (
                           <span className="ml-2 text-xs text-green-500">
                             -{product.discountPercent}%
@@ -291,6 +333,12 @@ export default function ProductList() {
                         Edit
                       </button>
                       <button
+                        onClick={() => openOfferModal(product)}
+                        className="text-green-600 hover:text-green-800 mr-2"
+                      >
+                        {product.offer ? "Edit Offer" : "Add Offer"}
+                      </button>
+                      <button
                         onClick={() => openModal("toggleStatus", product._id)}
                         className={`${
                           !product.isactive
@@ -332,6 +380,15 @@ export default function ProductList() {
             : ""
         } this product?`}
       />
+      <AddEditOfferModal
+        isOpen={offerModalOpen}
+        onClose={closeOfferModal}
+        onSubmit={handleOfferSubmit}
+        product={selectedProduct}
+      />
     </div>
   );
-}
+};
+
+export default ProductList;
+

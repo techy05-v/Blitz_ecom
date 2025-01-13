@@ -191,15 +191,16 @@ const HomePage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                 {displayProducts.map((product) => (
                   <ProductCard
-                    key={product?._id}
-                    id={product?._id}
-                    name={product?.productName}
-                    price={product?.regularPrice}
-                    images={product?.images || []}
-                    availableSizes={product.availableSizes}
-                    isInWishlist={wishlistItems.includes(products.id)}
-                    onWishlistUpdate={handleWishlistUpdate}
-                  />
+                  key={product._id}
+                  id={product._id}
+                  name={product.productName || "Unnamed Product"}
+                  price={product.regularPrice || 0}
+                  images={product.images || []}
+                  discountPercent={product.discountPercent || 0}
+                  availableSizes={product.availableSizes} 
+                  isInWishlist={wishlistItems.includes(product.id)}
+                  onWishlistUpdate={handleWishlistUpdate}
+                />
                 ))}
               </div>
               {displayProducts.length >= 4 && (
