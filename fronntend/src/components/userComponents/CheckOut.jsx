@@ -148,22 +148,22 @@ const CheckoutPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+  
     if (!selectedAddress) {
       toast.error("Please select a delivery address");
       return;
     }
-
+  
     if (!selectedPaymentMethod) {
       toast.error("Please select a payment method");
       return;
     }
-
+  
     if (cartItems.length === 0) {
       toast.error("Your cart is empty");
       return;
     }
-
+  
     setLoading(true);
     try {
       const orderData = {
@@ -178,36 +178,36 @@ const CheckoutPage = () => {
           discountedPrice: item.discountedPrice,
         })),
         totalAmount: orderSummary.total,
-        appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null  // Make sure this is included
+        appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null
       };
-
-      const response = await orderService.createOrder(orderData);
-
-      if (response && response.order && response.order._id) {
-        await cartService.clearCart();
+  
+      if (selectedPaymentMethod.id === 'razorpay') {
+        const paymentInitiated = await handleRazorpayPayment(orderData);
+        if (!paymentInitiated) {
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Handle cash on delivery
+        const response = await orderService.createOrder(orderData);
+        
+        if (!response || !response.success) {
+          throw new Error(response?.message || 'Failed to create order');
+        }
+  
+        // Successfully created order
         toast.success("Order placed successfully!");
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         navigate("/user/success", {
           state: {
-            orderId: response.order._id,
-            orderDetails: response.order
+            orderId: response.data.orderId,
+            orderDetails: response.data
           },
           replace: true
         });
-      } else {
-        throw new Error(response.message || "Invalid order response");
       }
     } catch (error) {
       console.error("Order creation failed:", error);
-      if (error.response?.status === 400) {
-        toast.error(error.response.data.message || "Invalid order data");
-      } else if (error.response?.status === 500) {
-        toast.error("Server error. Please try again later.");
-      } else {
-        toast.error("Failed to place order. Please try again.");
-      }
+      toast.error(error.message || "Failed to place order. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -351,6 +351,99 @@ const CheckoutPage = () => {
     });
 
     toast.success("Coupon removed successfully");
+  };
+
+
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+  const handleRazorpayPayment = async (orderData) => {
+    const res = await loadRazorpay();
+    if (!res) {
+      toast.error('Razorpay SDK failed to load. Please try again later.');
+      return false;
+    }
+
+    try {
+      // Create order using the existing createOrder endpoint
+      const response = await orderService.createOrder(orderData);
+      
+      // Validate the response structure
+      if (!response || !response.success || !response.razorpayOrder || !response.razorpayOrder.id || !response.data || !response.data.orderId) {
+        throw new Error('Invalid order response structure');
+      }
+
+      // Store the orderId from the response for later use
+      const storeOrderId = response.data.orderId;
+
+      return new Promise((resolve, reject) => {
+        const options = {
+          key: "rzp_test_OjGNfvyaKeJQu5",
+          amount: response.razorpayOrder.amount,
+          currency: response.razorpayOrder.currency,
+          name: 'Your Store Name',
+          description: 'Order Payment',
+          order_id: response.razorpayOrder.id,
+          handler: async function (razorpayResponse) {
+            try {
+              const verificationResponse = await orderService.verifyPayment({
+                razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                razorpay_order_id: razorpayResponse.razorpay_order_id,
+                razorpay_signature: razorpayResponse.razorpay_signature,
+                orderId: storeOrderId // Use the stored orderId here
+              });
+
+              if (verificationResponse.success) {
+                toast.success("Payment successful!");
+                navigate("/user/success", {
+                  state: {
+                    orderId: storeOrderId,
+                    orderDetails: response.data // Pass the complete order details
+                  },
+                  replace: true
+                });
+                resolve(true);
+              } else {
+                reject(new Error(verificationResponse.message || 'Payment verification failed'));
+              }
+            } catch (error) {
+              console.error('Payment verification error:', error);
+              toast.error('Payment verification failed. Please contact support.');
+              reject(error);
+            }
+          },
+          prefill: {
+            name: selectedAddress?.full_name || '',
+            contact: selectedAddress?.phone_number || '',
+          },
+          notes: {
+            shipping_address: `${selectedAddress?.street}, ${selectedAddress?.city}, ${selectedAddress?.state} ${selectedAddress?.pincode}`
+          },
+          theme: {
+            color: '#9333EA'
+          }
+        };
+
+        const paymentObject = new window.Razorpay(options);
+        paymentObject.on('payment.failed', function (response) {
+          console.error('Payment failed:', response.error);
+          toast.error('Payment failed. Please try again.');
+          reject(new Error(response.error.description || 'Payment failed'));
+        });
+
+        paymentObject.open();
+      });
+    } catch (error) {
+      console.error('Order creation failed:', error);
+      toast.error(error.message || 'Failed to create order. Please try again.');
+      return false;
+    }
   };
 
   if (loading) {

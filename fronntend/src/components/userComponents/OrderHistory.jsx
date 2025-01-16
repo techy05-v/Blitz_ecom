@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import orderService from "../../api/orderService/orderService";
+import { Link } from 'react-router-dom';
 
 const OrderHistory = () => {
   const [orders, setOrders] = useState([]);
@@ -12,42 +13,62 @@ const OrderHistory = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, [currentPage]); // Refetch when page changes
+  }, [currentPage]);
 
-// Inside OrderHistory.jsx, update the fetchOrders function:
-
-const fetchOrders = async () => {
-  try {
+  const fetchOrders = async () => {
+    try {
       setLoading(true);
+      setError(null);  // Clear any previous errors
       const response = await orderService.getUserOrders({
-          page: currentPage,
-          limit: itemsPerPage
+        page: currentPage,
+        limit: itemsPerPage
       });
       
-      setOrders(response.orders);
-      setTotalOrders(response.totalOrders);
-      setTotalPages(response.totalPages);
-      
-      // If the current page is greater than total pages, reset to page 1
-      if (currentPage > response.totalPages) {
-          setCurrentPage(1);
+      if (!response || !Array.isArray(response.orders)) {
+        throw new Error('Invalid response format');
       }
-  } catch (err) {
+
+      setOrders(response.orders);
+      setTotalOrders(response.totalOrders || 0);
+      setTotalPages(response.totalPages || 1);
+      
+      if (currentPage > (response.totalPages || 1)) {
+        setCurrentPage(1);
+      }
+    } catch (err) {
       setError(err.message || 'Failed to fetch orders');
       setOrders([]);
-  } finally {
+    } finally {
       setLoading(false);
-  }
-};
+    }
+  };
 
   const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-    window.scrollTo(0, 0);
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    const baseClasses = "relative inline-block px-3 py-1 font-semibold leading-tight rounded-full capitalize";
+    switch (status?.toLowerCase()) {
+      case 'delivered':
+        return `${baseClasses} text-green-900 bg-green-200`;
+      case 'cancelled':
+        return `${baseClasses} text-red-900 bg-red-200`;
+      case 'processing':
+        return `${baseClasses} text-blue-900 bg-blue-200`;
+      case 'pending':
+        return `${baseClasses} text-yellow-900 bg-yellow-200`;
+      default:
+        return `${baseClasses} text-gray-900 bg-gray-200`;
+    }
   };
 
   const PaginationInfo = () => (
     <div className="text-sm text-gray-600 mt-4">
-      Showing {orders.length} of {totalOrders} orders
+      Showing {Math.min((currentPage - 1) * itemsPerPage + orders.length, totalOrders)} of {totalOrders} orders
     </div>
   );
 
@@ -68,7 +89,7 @@ const fetchOrders = async () => {
         <button
           key={i}
           onClick={() => handlePageChange(i)}
-          className={`px-3 py-1 mx-1 rounded ${
+          className={`px-3 py-1 mx-1 rounded transition-colors duration-200 ${
             currentPage === i
               ? 'bg-blue-600 text-white'
               : 'bg-white text-blue-600 hover:bg-blue-100 border border-blue-600'
@@ -85,14 +106,14 @@ const fetchOrders = async () => {
         <button
           onClick={() => handlePageChange(1)}
           disabled={currentPage === 1}
-          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600"
+          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600 transition-colors duration-200"
         >
           First
         </button>
         <button
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600"
+          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600 transition-colors duration-200"
         >
           Previous
         </button>
@@ -102,14 +123,14 @@ const fetchOrders = async () => {
         <button
           onClick={() => handlePageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600"
+          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600 transition-colors duration-200"
         >
           Next
         </button>
         <button
           onClick={() => handlePageChange(totalPages)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600"
+          className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 disabled:opacity-50 disabled:hover:bg-white border border-blue-600 transition-colors duration-200"
         >
           Last
         </button>
@@ -120,7 +141,7 @@ const fetchOrders = async () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
       </div>
     );
   }
@@ -128,8 +149,14 @@ const fetchOrders = async () => {
   if (error) {
     return (
       <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-        <strong className="font-bold">Error!</strong>
-        <span className="block sm:inline"> {error}</span>
+        <strong className="font-bold">Error! </strong>
+        <span className="block sm:inline">{error}</span>
+        <button 
+          onClick={fetchOrders}
+          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors duration-200"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -138,11 +165,11 @@ const fetchOrders = async () => {
     <div className="container mx-auto px-4 sm:px-8">
       <div className="py-8">
         <div className="flex flex-col md:flex-row justify-between w-full mb-1 sm:mb-0">
-          <h2 className="text-2xl leading-tight">Order History</h2>
+          <h2 className="text-2xl leading-tight font-bold text-gray-900">Order History</h2>
           <div className="text-end">
             <button 
               onClick={fetchOrders}
-              className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-opacity-50"
+              className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-opacity-50 transition-colors duration-200"
             >
               Refresh Orders
             </button>
@@ -175,45 +202,51 @@ const fetchOrders = async () => {
               </thead>
               <tbody>
                 {orders.map((order) => (
-                  <tr key={order._id}>
+                  <tr key={order._id} className="hover:bg-gray-50">
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                      <p className="text-gray-900 whitespace-no-wrap">{order.orderId}</p>
+                      <p className="text-gray-900 whitespace-no-wrap">{order.orderId || 'N/A'}</p>
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                       <p className="text-gray-900 whitespace-no-wrap">
-                        {new Date(order.createdAt).toLocaleDateString()}
+                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                       </p>
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                      <p className="text-gray-900 whitespace-no-wrap">₹{order.totalAmount}</p>
+                      <p className="text-gray-900 whitespace-no-wrap">
+                        ₹{(order.originalAmount || 0).toFixed(2)}
+                      </p>
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                      <p className="text-gray-900 whitespace-no-wrap">{order.paymentMethod}</p>
+                      <p className="text-gray-900 whitespace-no-wrap capitalize">
+                        {order.paymentMethod || 'N/A'}
+                      </p>
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                      <span className={`relative inline-block px-3 py-1 font-semibold leading-tight rounded-full ${
-                        order.orderStatus === 'delivered' ? 'text-green-900 bg-green-200' :
-                        order.orderStatus === 'cancelled' ? 'text-red-900 bg-red-200' :
-                        'text-yellow-900 bg-yellow-200'
-                      }`}>
-                        {order.orderStatus}
+                      <span className={getStatusStyle(order.orderStatus)}>
+                        {order.orderStatus || 'Unknown'}
                       </span>
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                      <a 
-                        href={`/user/orders/${order._id}`}
-                        className="text-blue-600 hover:text-blue-900 hover:underline"
+                      <Link 
+                        to={`/user/orders/${order._id}`}
+                        className="text-blue-600 hover:text-blue-900 hover:underline transition-colors duration-200"
                       >
                         View Details
-                      </a>
+                      </Link>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {orders.length === 0 && (
-              <div className="px-5 py-5 bg-white text-sm text-center">
-                <p className="text-gray-900">No orders found.</p>
+              <div className="px-5 py-10 bg-white text-center">
+                <p className="text-gray-500 text-lg">No orders found.</p>
+                <Link 
+                  to="/user/shop"
+                  className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200"
+                >
+                  Start Shopping
+                </Link>
               </div>
             )}
           </div>

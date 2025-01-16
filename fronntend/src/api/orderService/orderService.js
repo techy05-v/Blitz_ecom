@@ -77,6 +77,32 @@ const orderService = {
             };
         }
     },
+    verifyPayment: async (paymentData) => {
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature
+        } = paymentData;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            throw new Error('All payment details are required');
+        }
+
+        try {
+            const response = await axiosInstance.post('/user/verify-payment', {
+                razorpay_order_id,
+                razorpay_payment_id,
+                razorpay_signature
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || {
+                success: false,
+                message: 'Error verifying payment',
+                error: error.message
+            };
+        }
+    }
 
 };
 

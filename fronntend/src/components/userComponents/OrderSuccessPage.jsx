@@ -13,9 +13,16 @@ const OrderSuccessPage = () => {
     }
   }, [orderId, orderDetails, navigate]);
 
+  // Early return if data is missing
   if (!orderId || !orderDetails) {
-    return null; // Return null to avoid rendering anything while redirecting
+    return null;
   }
+
+  // Safely access totalAmount with fallback
+  const totalAmount = orderDetails.originalAmount ?? 0;
+  
+  // Safely access items array with fallback
+  const items = Array.isArray(orderDetails.items) ? orderDetails.items : [];
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -31,15 +38,18 @@ const OrderSuccessPage = () => {
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">Order Details</h2>
             <div className="mb-4">
               <p className="text-gray-600">Order ID: <span className="font-semibold">{orderId}</span></p>
-              <p className="text-gray-600">Total Amount: <span className="font-semibold">₹{orderDetails.totalAmount.toFixed(2)}</span></p>
-              <p className="text-gray-600">Payment Method: <span className="font-semibold">{orderDetails.paymentMethod}</span></p>
+              <p className="text-gray-600">Total Amount: <span className="font-semibold">₹{totalAmount.toFixed(2)}</span></p>
+              <p className="text-gray-600">Payment Method: <span className="font-semibold">{orderDetails.paymentMethod || 'Not specified'}</span></p>
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Items Ordered</h3>
             <ul className="mb-6">
-              {orderDetails.items.map((item, index) => (
+              {items.map((item, index) => (
                 <li key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                  <span className="text-gray-800">{item.product.name} (Size: {item.size})</span>
-                  <span className="text-gray-600">Qty: {item.quantity}</span>
+                  <span className="text-gray-800">
+                    {item?.product?.productName || 'Product name not available'} 
+                    (Size: {item?.size || 'N/A'})
+                  </span>
+                  <span className="text-gray-600">Qty: {item?.quantity || 0}</span>
                 </li>
               ))}
             </ul>
@@ -65,4 +75,3 @@ const OrderSuccessPage = () => {
 };
 
 export default OrderSuccessPage;
-

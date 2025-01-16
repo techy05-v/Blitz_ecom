@@ -5,7 +5,7 @@ const {googleAuth,getProductById,getAllProductsByUser,getAllCategories,resetPass
 const {verifyUser} = require("../middleware/auth")
 const {addAddress,editAddress,deleteAddress,getAddresses}= require("../controller/addressController")
 const{addToCart,getCartItems ,clearCart ,removeCartItems,updateCartItem }=require("../controller/cartController")
-const{createOrder,getUserOrders,cancelOrder,getOrderDetails,cancelOrderItem}=require("../controller/orderController")
+const{createOrder,getUserOrders,cancelOrder,getOrderDetails,cancelOrderItem,verifyPayment}=require("../controller/orderController")
 const { createProfile, getProfile, updateProfile, deleteProfileImage } = require("../controller/profileController");
 const {addToWishlist,getWishlist,clearWishlist,removeFromWishlist,}= require("../controller/wishlistController")
 const {
@@ -46,6 +46,7 @@ userRoute.get("/orders/my-orders",verifyUser,getUserOrders)
 userRoute.get("/orders/details/:orderId",verifyUser,getOrderDetails)
 userRoute.put("/orders/cancel/:orderId",verifyUser,cancelOrder)
 userRoute.post("/orders/:orderId/items/:itemId/cancel",verifyUser,cancelOrderItem)
+userRoute.post("/verify-payment",verifyUser,verifyPayment)
 
 
 

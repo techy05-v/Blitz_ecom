@@ -39,6 +39,18 @@ const orderSchema = new mongoose.Schema({
     },
     cancelledAt: {
       type: Date
+    },
+    refundStatus:{
+      type:String,
+      enum:["none","pending","processed"],
+      default:"none"
+    },
+    refundAmount:{
+      type:Number,
+      default:0
+    },
+    refundDate:{
+      type:Date
     }
   }],
   shippingAddress: {
@@ -46,9 +58,31 @@ const orderSchema = new mongoose.Schema({
     ref: 'AddressSchema',
     required: true
   },
-  totalAmount: {
-    type: Number,
-    required: true
+  originalAmount:{
+    type:Number,
+    required:true
+
+  },
+  initialTotalAmount:{},
+  currentAmount:{
+    type:Number,
+    required:true,
+
+  },
+  razorpayOrderId: {
+    type: String,
+    sparse: true  // Allows null/undefined values while maintaining uniqueness
+  },
+  razorpayPaymentId: {
+    type: String,
+    sparse: true
+  },
+  razorpaySignature: {
+    type: String,
+    sparse: true
+  },
+  paymentCompletedAt: {
+    type: Date
   },
   paymentStatus: {
     type: String,
@@ -57,7 +91,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['card', 'cash_on_delivery', 'upi'],
+    enum: ['card', 'cash_on_delivery', 'upi',"razorpay"],
     required: true
   },
   orderStatus: {
@@ -77,6 +111,20 @@ const orderSchema = new mongoose.Schema({
     },
     discountAmount: Number
   },
+  totalRefundAmount: {
+    type: Number,
+    default: 0
+  },
+  refundHistory: [{
+    amount: Number,
+    date: Date,
+    reason: String,
+    status: {
+      type: String,
+      enum: ['pending', 'processed', 'failed'],
+      default: 'pending'
+    }
+  }],
   orderNotes: String,
   estimatedDeliveryDate: Date,
   cancelReason: String

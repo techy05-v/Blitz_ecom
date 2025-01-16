@@ -18,7 +18,20 @@ const OrderDetails = () => {
       try {
         const response = await orderService.getOrderById(orderId);
         if (response && response.order) {
-          setOrder(response.order);
+          // Add fallback defaults for missing fields
+          const validatedOrder = {
+            ...response.order,
+            originalAmount: response.order.originalAmount || 0,
+            currentAmount: response.order.currentAmount || 0,
+            items: response.order.items.map(item => ({
+              ...item,
+              currentPrice: item.currentPrice || 0,
+              originalPrice: item.originalPrice || 0,
+              quantity: item.quantity || 0,
+              size: item.size || 'N/A',
+            })),
+          };
+          setOrder(validatedOrder);
         } else {
           setError('No order data received');
         }
@@ -28,9 +41,10 @@ const OrderDetails = () => {
         setLoading(false);
       }
     };
-
+  
     fetchOrderDetails();
   }, [orderId]);
+  
 
   const handleCancelOrder = () => {
     setCancellingItemId(null);
@@ -172,42 +186,42 @@ const OrderDetails = () => {
       </div>
     );
   };
-
   const OrderItem = ({ item }) => {
+    if (!item) return null;
+  
+    const formatPrice = (amount) => {
+      return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
+    };
+  
     return (
-      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${item.status === 'cancelled' ? 'bg-red-50' : 'bg-gray-50 hover:shadow-md'}`}>
-        {item.product.imageUrl && (
-          <img
-            src={item.product.imageUrl || "/placeholder.svg"}
-            alt={item.product.productName}
-            className="w-16 h-16 object-cover rounded-md mr-4"
-          />
-        )}
+      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${
+        item.itemStatus === 'Cancelled' ? 'bg-red-50' : 'bg-gray-50 hover:shadow-md'
+      }`}>
         <div className="flex-1">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="text-lg font-medium text-gray-800">
-                {item.product.productName}
+                {item.productName || 'Unnamed Product'}
               </h3>
               <p className="text-sm text-gray-600">
-                Size: {item.size} | Quantity: {item.quantity}
+                Size: {item.size || 'N/A'} | Quantity: {item.quantity || 0}
               </p>
               <p className="text-sm font-semibold text-gray-900 mt-1">
-                ₹{item.discountedPrice.toFixed(2)}
-                {item.discountedPrice !== item.price && (
+                ₹{formatPrice(item.currentPrice)}
+                {item.currentPrice !== item.originalPrice && (
                   <span className="line-through text-gray-500 ml-2 text-xs">
-                    ₹{item.price.toFixed(2)}
+                    ₹{formatPrice(item.originalPrice)}
                   </span>
                 )}
               </p>
             </div>
             <div className="flex flex-col items-end">
-              {item.status === 'cancelled' ? (
+              {item.itemStatus === 'Cancelled' ? (
                 <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
                   Cancelled
                 </span>
               ) : (
-                ['pending', 'processing'].includes(order.orderStatus.toLowerCase()) && (
+                order?.orderStatus && ['Pending', 'Processing'].includes(order.orderStatus) && (
                   <button
                     onClick={() => handleCancelItem(item._id)}
                     disabled={cancelLoading}
@@ -219,7 +233,7 @@ const OrderDetails = () => {
               )}
             </div>
           </div>
-          {item.status === 'cancelled' && item.cancelReason && (
+          {item.cancelReason && (
             <div className="mt-3 p-2 bg-red-100 rounded-md">
               <div className="flex items-center text-red-700">
                 <AlertCircle className="w-4 h-4 mr-2" />
@@ -228,11 +242,69 @@ const OrderDetails = () => {
               <p className="text-sm text-red-600 mt-1">{item.cancelReason}</p>
             </div>
           )}
+          {item.refundStatus && (
+            <div className="mt-2 text-sm text-blue-600">
+              <span className="font-medium">Refund Status:</span> {item.refundStatus}
+              {typeof item.refundAmount === 'number' && 
+                ` (₹${formatPrice(item.refundAmount)})`
+              }
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
+  const OrderSummary = () => {
+    if (!order) return null;
+  
+    const formatPrice = (amount) => {
+      return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
+    };
+  
+    return (
+      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Original Amount</span>
+          <span className="font-medium">₹{formatPrice(order.originalAmount)}</span>
+        </div>
+        {order.couponApplied && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Coupon Discount</span>
+            <span className="text-green-600 font-medium">
+              -₹{formatPrice(order.couponApplied.discountAmount)}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Current Amount</span>
+          <span className="font-medium">₹{formatPrice(order.currentAmount)}</span>
+        </div>
+        {order.totalRefundAmount > 0 && (
+          <div className="flex justify-between text-sm text-blue-600">
+            <span>Total Refund Amount</span>
+            <span className="font-medium">₹{formatPrice(order.totalRefundAmount)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Payment Method</span>
+          <span className="font-medium">
+            {(order.paymentMethod || '').replace(/_/g, ' ').toUpperCase()}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Payment Status</span>
+          <span className={`font-medium ${
+            order.paymentStatus === 'completed' ? 'text-green-600' :
+            order.paymentStatus === 'failed' ? 'text-red-600' :
+            'text-yellow-600'
+          }`}>
+            {(order.paymentStatus || 'PENDING').toUpperCase()}
+          </span>
+        </div>
+      </div>
+    );
+  };
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -349,48 +421,7 @@ const OrderDetails = () => {
                 <CreditCard className="w-5 h-5 mr-2 text-blue-500" />
                 Order Summary
               </h2>
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Payment Method</span>
-                  <span className="font-medium">{order.paymentMethod.replace(/_/g, ' ').toUpperCase()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Payment Status</span>
-                  <span className={`font-medium ${order.paymentStatus === 'completed' ? 'text-green-600' :
-                      order.paymentStatus === 'failed' ? 'text-red-600' :
-                        order.paymentStatus === 'refunded' ? 'text-blue-600' :
-                          'text-yellow-600'
-                    }`}>
-                    {order.paymentStatus.toUpperCase()}
-                  </span>
-                </div>
-                {order.estimatedDeliveryDate && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Estimated Delivery</span>
-                    <span className="font-medium">{new Date(order.estimatedDeliveryDate).toLocaleDateString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Items Total</span>
-                  <span className="font-medium">₹{order.items.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Discount</span>
-                  <span className="text-green-600 font-medium">
-                    -₹{(order.items.reduce((total, item) => total + ((item.price - item.discountedPrice) * item.quantity), 0)).toFixed(2)}
-                  </span>
-                </div>
-                {order.orderNotes && (
-                  <div className="pt-2 border-t border-gray-200 mt-2">
-                    <span className="text-gray-600 text-sm">Order Notes:</span>
-                    <p className="text-sm text-gray-800 mt-1">{order.orderNotes}</p>
-                  </div>
-                )}
-                <div className="flex justify-between text-lg font-semibold pt-2 border-t border-gray-200 mt-2">
-                  <span className="text-gray-900">Total Amount</span>
-                  <span className="text-blue-600">₹{order.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
+              <OrderSummary />
             </div>
 
             {/* Cancelled Items */}
