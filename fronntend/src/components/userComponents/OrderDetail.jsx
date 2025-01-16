@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Truck, Package, Clock, XCircle, ArrowLeft, CreditCard, MapPin, Home, Briefcase, Map } from 'lucide-react';
+import { CheckCircle, Truck, Package, Clock, XCircle, ArrowLeft, CreditCard, MapPin, Home, Briefcase, Map, AlertCircle } from 'lucide-react';
 import orderService from '../../api/orderService/orderService';
 import ConfirmationModal from '../../confirmationModal/ConfirmationMadal';
 
@@ -11,6 +11,7 @@ const OrderDetails = () => {
   const [error, setError] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [cancellingItemId, setCancellingItemId] = useState(null);
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
@@ -32,7 +33,42 @@ const OrderDetails = () => {
   }, [orderId]);
 
   const handleCancelOrder = () => {
+    setCancellingItemId(null);
     setIsModalOpen(true);
+  };
+
+  const handleCancelItem = (itemId) => {
+    setCancellingItemId(itemId);
+    setIsModalOpen(true);
+  };
+
+  const confirmCancelItem = async () => {
+    setIsModalOpen(false);
+    setCancelLoading(true);
+    try {
+      const response = await orderService.cancelOrderItem(
+        orderId,
+        cancellingItemId,
+        "customer requested cancellation"
+      );
+
+      if (response && response.order) {
+        // Update both the item status and the overall order
+        setOrder(prevOrder => ({
+          ...response.order,
+          items: prevOrder.items.map(item =>
+            item._id === cancellingItemId
+              ? { ...item, itemStatus: 'Cancelled' }  // Changed from status to itemStatus
+              : item
+          )
+        }));
+      }
+    } catch (err) {
+      setError('Failed to cancel item: ' + err.message);
+    } finally {
+      setCancelLoading(false);
+      setCancellingItemId(null);
+    }
   };
 
   const confirmCancelOrder = async () => {
@@ -40,7 +76,7 @@ const OrderDetails = () => {
     setCancelLoading(true);
     try {
       const response = await orderService.cancelOrder(
-        orderId, 
+        orderId,
         'Customer requested cancellation'
       );
       if (response && response.order) {
@@ -101,10 +137,10 @@ const OrderDetails = () => {
             <div className="flex items-center justify-between">
               {steps.map((step, index) => (
                 <div key={step.key} className="flex flex-col items-center relative z-10">
-                  <div 
+                  <div
                     className={`w-16 h-16 flex items-center justify-center rounded-full border-4 transition-all duration-500 ease-in-out
-                      ${index <= currentStepIndex 
-                        ? 'bg-blue-500 border-blue-300 text-white shadow-lg' 
+                      ${index <= currentStepIndex
+                        ? 'bg-blue-500 border-blue-300 text-white shadow-lg'
                         : 'bg-white border-gray-300 text-gray-400'}`}
                   >
                     {index < currentStepIndex ? (
@@ -123,16 +159,76 @@ const OrderDetails = () => {
                 </div>
               ))}
             </div>
-            
+
             <div className="absolute top-8 left-0 w-full">
               <div className="h-1 bg-gray-200" />
-              <div 
+              <div
                 className="h-1 bg-blue-500 absolute top-0 left-0 transition-all duration-500 ease-in-out"
                 style={{ width: `${((currentStepIndex + 1) / steps.length) * 100}%` }}
               />
             </div>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const OrderItem = ({ item }) => {
+    return (
+      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${item.status === 'cancelled' ? 'bg-red-50' : 'bg-gray-50 hover:shadow-md'}`}>
+        {item.product.imageUrl && (
+          <img
+            src={item.product.imageUrl || "/placeholder.svg"}
+            alt={item.product.productName}
+            className="w-16 h-16 object-cover rounded-md mr-4"
+          />
+        )}
+        <div className="flex-1">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-medium text-gray-800">
+                {item.product.productName}
+              </h3>
+              <p className="text-sm text-gray-600">
+                Size: {item.size} | Quantity: {item.quantity}
+              </p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">
+                ₹{item.discountedPrice.toFixed(2)}
+                {item.discountedPrice !== item.price && (
+                  <span className="line-through text-gray-500 ml-2 text-xs">
+                    ₹{item.price.toFixed(2)}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col items-end">
+              {item.status === 'cancelled' ? (
+                <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                  Cancelled
+                </span>
+              ) : (
+                ['pending', 'processing'].includes(order.orderStatus.toLowerCase()) && (
+                  <button
+                    onClick={() => handleCancelItem(item._id)}
+                    disabled={cancelLoading}
+                    className="text-sm text-red-600 hover:text-red-800 font-medium transition-colors duration-200"
+                  >
+                    Cancel Item
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+          {item.status === 'cancelled' && item.cancelReason && (
+            <div className="mt-3 p-2 bg-red-100 rounded-md">
+              <div className="flex items-center text-red-700">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                <span className="font-semibold">Cancellation Reason:</span>
+              </div>
+              <p className="text-sm text-red-600 mt-1">{item.cancelReason}</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -167,6 +263,10 @@ const OrderDetails = () => {
     );
   }
 
+  // Update the activeItems and cancelledItems filters
+  const activeItems = order.items.filter(item => item.itemStatus !== 'Cancelled');
+  const cancelledItems = order.items.filter(item => item.itemStatus === 'Cancelled');
+
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -188,37 +288,19 @@ const OrderDetails = () => {
           <OrderStatusBar currentStatus={order.orderStatus} />
 
           <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Order Items */}
-            <div className="md:col-span-2">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Order Items</h2>
-              <div className="space-y-4">
-                {order.items.map((item, index) => (
-                  <div key={index} className="flex items-center bg-gray-50 p-3 rounded-lg">
-                    {item.product.imageUrl && (
-                      <img
-                        src={item.product.imageUrl}
-                        alt={item.product.productName}
-                        className="w-16 h-16 object-cover rounded-md mr-4"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h3 className="text-lg font-medium text-gray-800">
-                        {item.product.productName}
-                      </h3>
-                      <p className="text-sm text-gray-600">Size: {item.size} | Quantity: {item.quantity}</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">
-                        ₹{item.discountedPrice.toFixed(2)}
-                        {item.discountedPrice !== item.price && (
-                          <span className="line-through text-gray-500 ml-2 text-xs">
-                            ₹{item.price.toFixed(2)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+            {/* Active Items */}
+            {activeItems.length > 0 && (
+              <div className="md:col-span-2">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Active Items ({activeItems.length})
+                </h2>
+                <div className="space-y-4">
+                  {activeItems.map((item, index) => (
+                    <OrderItem key={index} item={item} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Shipping Address */}
             <div>
@@ -274,12 +356,11 @@ const OrderDetails = () => {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Payment Status</span>
-                  <span className={`font-medium ${
-                    order.paymentStatus === 'completed' ? 'text-green-600' : 
-                    order.paymentStatus === 'failed' ? 'text-red-600' : 
-                    order.paymentStatus === 'refunded' ? 'text-blue-600' : 
-                    'text-yellow-600'
-                  }`}>
+                  <span className={`font-medium ${order.paymentStatus === 'completed' ? 'text-green-600' :
+                      order.paymentStatus === 'failed' ? 'text-red-600' :
+                        order.paymentStatus === 'refunded' ? 'text-blue-600' :
+                          'text-yellow-600'
+                    }`}>
                     {order.paymentStatus.toUpperCase()}
                   </span>
                 </div>
@@ -311,6 +392,20 @@ const OrderDetails = () => {
                 </div>
               </div>
             </div>
+
+            {/* Cancelled Items */}
+            {cancelledItems.length > 0 && (
+              <div className="md:col-span-2">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Cancelled Items ({cancelledItems.length})
+                </h2>
+                <div className="space-y-4">
+                  {cancelledItems.map((item, index) => (
+                    <OrderItem key={index} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -327,8 +422,8 @@ const OrderDetails = () => {
                 onClick={handleCancelOrder}
                 disabled={cancelLoading}
                 className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                  ${cancelLoading 
-                    ? 'bg-gray-400 cursor-not-allowed' 
+                  ${cancelLoading
+                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'} 
                   transition-all duration-300 flex items-center`}
               >
@@ -358,19 +453,19 @@ const OrderDetails = () => {
           <div className="flex items-center">
             <div className="py-1">
               <svg className="w-6 h-6 mr-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             </div>
             <div>
               <p className="font-bold">Error</p>
               <p className="text-sm">{error}</p>
             </div>
-            <button 
+            <button
               onClick={() => setError(null)}
               className="ml-auto pl-3"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
@@ -381,9 +476,11 @@ const OrderDetails = () => {
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConfirm={confirmCancelOrder}
-        title="Cancel Order"
-        message="Are you sure you want to cancel this order? This action cannot be undone."
+        onConfirm={cancellingItemId ? confirmCancelItem : confirmCancelOrder}
+        title={cancellingItemId ? "Cancel Item" : "Cancel Order"}
+        message={cancellingItemId
+          ? "Are you sure you want to cancel this item? This action cannot be undone."
+          : "Are you sure you want to cancel this order? This action cannot be undone."}
       />
     </div>
   );

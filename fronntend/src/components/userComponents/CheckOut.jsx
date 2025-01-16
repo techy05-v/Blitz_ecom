@@ -3,9 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { addressService } from "../../api/addressService/addressService";
 import cartService from "../../api/cartService/cartService";
 import orderService from "../../api/orderService/orderService";
+import couponService from "../../api/couponService/couponService";
 import { toast } from "sonner";
-import { CreditCard, Wallet, DollarSign, Plus } from 'lucide-react';
+import { CreditCard, Wallet, DollarSign, Plus, Tag, MapPin, CreditCardIcon, Truck } from 'lucide-react';
 import AddressFormModal from "../../confirmationModal/AddressModal";
+import { jwtDecode } from "jwt-decode";
+import Cookies from 'js-cookie';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -20,8 +23,13 @@ const CheckoutPage = () => {
     subtotal: 0,
     tax: 0,
     shipping: 5.0,
+    discount: 0,
     total: 0,
   });
+  const [coupons, setCoupons] = useState([]);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponError, setCouponError] = useState("");
 
   const paymentMethods = [
     { id: "razorpay", name: "Razor Pay", icon: CreditCard },
@@ -37,8 +45,11 @@ const CheckoutPage = () => {
       setError(null);
 
       try {
-        const addressResponse = await addressService.getAllAddress();
-        const cartResponse = await cartService.getCartItems();
+        const [addressResponse, cartResponse, couponsResponse] = await Promise.all([
+          addressService.getAllAddress(),
+          cartService.getCartItems(),
+          couponService.listCoupons()
+        ]);
 
         if (!cartResponse || !cartResponse.success || !cartResponse.cart) {
           throw new Error("Invalid cart response format");
@@ -49,6 +60,13 @@ const CheckoutPage = () => {
         if (isMounted) {
           setAddresses(Array.isArray(addressResponse) ? addressResponse : []);
           setCartItems(cartItemsArray);
+
+          if (couponsResponse && couponsResponse.success && Array.isArray(couponsResponse.coupons)) {
+            setCoupons(couponsResponse.coupons);
+          } else {
+            console.warn('Invalid coupons response:', couponsResponse);
+            setCoupons([]);
+          }
 
           if (addressResponse.length > 0) {
             setSelectedAddress(addressResponse[0]);
@@ -74,6 +92,23 @@ const CheckoutPage = () => {
     };
   }, []);
 
+  const getUserIdFromToken = () => {
+    try {
+      const token = Cookies.get('user_access_token');
+      if (!token) {
+        console.log("No token found");
+        return null;
+      }
+
+      const decoded = jwtDecode(token);
+      console.log("Decoded token:", decoded);
+      return decoded.data.id;
+    } catch (error) {
+      console.error("Error decoding token:", error);
+      return null;
+    }
+  };
+
   const calculateOrderSummary = (items) => {
     if (!items || !Array.isArray(items) || items.length === 0) {
       console.warn("No items to calculate summary");
@@ -81,18 +116,34 @@ const CheckoutPage = () => {
     }
 
     const subtotal = items.reduce((sum, item) => {
-      if (!item.product || !item.quantity || !item.discountedPrice) {
+      if (!item.product || !item.quantity || typeof item.discountedPrice !== 'number') {
         console.warn("Invalid item data:", item);
         return sum;
       }
-      return sum + item.discountedPrice * item.quantity;
+      return sum + (item.discountedPrice * item.quantity);
     }, 0);
 
     const tax = subtotal * 0.08;
     const shipping = 5.0;
-    const total = subtotal + tax + shipping;
 
-    setOrderSummary({ subtotal, tax, shipping, total });
+    let discount = 0;
+    if (appliedCoupon) {
+      if (appliedCoupon.discountType === 'percentage') {
+        discount = subtotal * (parseFloat(appliedCoupon.discountValue) / 100);
+      } else if (appliedCoupon.discountType === 'fixed') {
+        discount = parseFloat(appliedCoupon.discountValue);
+      }
+    }
+
+    const total = subtotal + tax + shipping - discount;
+
+    setOrderSummary({
+      subtotal,
+      tax,
+      shipping,
+      discount,
+      total
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -127,6 +178,7 @@ const CheckoutPage = () => {
           discountedPrice: item.discountedPrice,
         })),
         totalAmount: orderSummary.total,
+        appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null  // Make sure this is included
       };
 
       const response = await orderService.createOrder(orderData);
@@ -134,13 +186,13 @@ const CheckoutPage = () => {
       if (response && response.order && response.order._id) {
         await cartService.clearCart();
         toast.success("Order placed successfully!");
-        
+
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        navigate("/user/success", { 
-          state: { 
+
+        navigate("/user/success", {
+          state: {
             orderId: response.order._id,
-            orderDetails: response.order 
+            orderDetails: response.order
           },
           replace: true
         });
@@ -174,15 +226,140 @@ const CheckoutPage = () => {
     }
   };
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error("Please enter a coupon code");
+      return;
+    }
+  
+    try {
+      const userId = getUserIdFromToken();
+      if (!userId) {
+        toast.error("Authentication required to apply coupon");
+        return;
+      }
+  
+      const cartTotal = cartItems.reduce((sum, item) => {
+        return sum + (item.discountedPrice * item.quantity);
+      }, 0);
+  
+      const couponRequest = {
+        code: couponCode.trim(),
+        cartTotal: parseFloat(cartTotal.toFixed(2)),
+        userId: userId,
+        appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null
+      };
+  
+      const response = await couponService.applyCoupon(couponRequest);
+      
+      if (response && response.success) {
+        setAppliedCoupon({
+          couponId: response.couponId,
+          code: response.couponCode,
+          discountType: 'percentage',
+          discountValue: response.offerPercentage
+        });
+  
+        // Calculate new totals
+        const subtotal = parseFloat(orderSummary.subtotal);
+        const tax = parseFloat(orderSummary.tax);
+        const shipping = parseFloat(orderSummary.shipping);
+        const discountAmount = parseFloat(response.discountAmount);
+        const newTotal = subtotal + tax + shipping - discountAmount;
+  
+        setOrderSummary(prevSummary => ({
+          ...prevSummary,
+          discount: discountAmount,
+          total: newTotal
+        }));
+  
+        setCouponError("");
+        setCouponCode("");
+        toast.success("Coupon applied successfully!");
+      } else {
+        throw new Error(response?.message || 'Failed to apply coupon');
+      }
+    } catch (error) {
+      console.error("Coupon application error:", error);
+      
+      const errorMessage = error.message || "Failed to apply coupon";
+      setCouponError(errorMessage);
+      toast.error(errorMessage);
+      
+      // Reset applied coupon if there's an error
+      setAppliedCoupon(null);
+    }
+  };
+  
+  // Add a function to check if a coupon can still be used
+  const checkCouponValidity = async (couponId, userId) => {
+    try {
+      // Instead of calling a separate validate endpoint, use the apply coupon endpoint
+      const cartTotal = orderSummary.subtotal;
+      const couponDetails = await couponService.applyCoupon({
+        code: appliedCoupon.code,
+        cartTotal,
+        userId,
+        appliedCouponId: couponId
+      });
+      return couponDetails.success;
+    } catch (error) {
+      console.error("Coupon validation error:", error);
+      return false;
+    }
+  };
+  
+  // Add this effect to check coupon validity when component mounts or cart changes
+  useEffect(() => {
+    const validateExistingCoupon = async () => {
+      if (appliedCoupon && appliedCoupon.couponId) {
+        const userId = getUserIdFromToken();
+        const isValid = await checkCouponValidity(appliedCoupon.couponId, userId);
+        
+        if (!isValid) {
+          setAppliedCoupon(null);
+          setCouponError("The applied coupon is no longer valid");
+          toast.error("The applied coupon has expired or reached its usage limit");
+          
+          // Reset the order summary discount
+          setOrderSummary(prevSummary => ({
+            ...prevSummary,
+            discount: 0,
+            total: prevSummary.subtotal + prevSummary.tax + prevSummary.shipping
+          }));
+        }
+      }
+    };
+  
+    validateExistingCoupon();
+  }, [cartItems, appliedCoupon]);
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError("");
+
+    const subtotal = parseFloat(orderSummary.subtotal);
+    const tax = parseFloat(orderSummary.tax);
+    const shipping = parseFloat(orderSummary.shipping);
+
+    const newTotal = subtotal + tax + shipping;
+
+    setOrderSummary({
+      ...orderSummary,
+      discount: 0,
+      total: newTotal
+    });
+
+    toast.success("Coupon removed successfully");
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white shadow-md rounded-lg p-8">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-              <span className="ml-2">Loading checkout information...</span>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+            <span className="ml-3 text-xl font-semibold text-gray-700">Loading checkout...</span>
           </div>
         </div>
       </div>
@@ -191,21 +368,19 @@ const CheckoutPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white shadow-md rounded-lg p-8">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-red-600 mb-2">
-                Error Loading Checkout
-              </h2>
-              <p className="text-gray-600">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
-              >
-                Try Again
-              </button>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">
+              Error Loading Checkout
+            </h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-purple-500 text-white px-6 py-2 rounded-full hover:bg-purple-600 transition duration-300 transform hover:scale-105"
+            >
+              Try Again
+            </button>
           </div>
         </div>
       </div>
@@ -214,23 +389,21 @@ const CheckoutPage = () => {
 
   if (addresses.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white shadow-md rounded-lg p-8">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                No Delivery Addresses Found
-              </h2>
-              <p className="text-gray-600 mb-4">
-                Please add a delivery address to continue checkout.
-              </p>
-              <button
-                onClick={() => setIsAddressModalOpen(true)}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
-              >
-                Add New Address
-              </button>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              No Delivery Addresses Found
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Please add a delivery address to continue checkout.
+            </p>
+            <button
+              onClick={() => setIsAddressModalOpen(true)}
+              className="bg-purple-500 text-white px-6 py-2 rounded-full hover:bg-purple-600 transition duration-300 transform hover:scale-105"
+            >
+              Add New Address
+            </button>
           </div>
         </div>
       </div>
@@ -239,23 +412,21 @@ const CheckoutPage = () => {
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white shadow-md rounded-lg p-8">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Your Cart is Empty
-              </h2>
-              <p className="text-gray-600 mb-4">
-                Add items to your cart to proceed with checkout.
-              </p>
-              <button
-                onClick={() => navigate("/user/shop")}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
-              >
-                Continue Shopping
-              </button>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              Your Cart is Empty
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Add items to your cart to proceed with checkout.
+            </p>
+            <button
+              onClick={() => navigate("/user/shop")}
+              className="bg-purple-500 text-white px-6 py-2 rounded-full hover:bg-purple-600 transition duration-300 transform hover:scale-105"
+            >
+              Continue Shopping
+            </button>
           </div>
         </div>
       </div>
@@ -263,141 +434,267 @@ const CheckoutPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white shadow-md rounded-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-8">Checkout</h1>
+        <div className="bg-white shadow-2xl rounded-3xl overflow-hidden">
+          <div className="p-8">
+            <h1 className="text-4xl font-extrabold text-gray-900 mb-8 text-center">
+              Checkout
+            </h1>
 
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <section className="mb-8">
-                <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                  Delivery Address
-                </h2>
-                <div className="space-y-4">
-                  {addresses.map((address) => (
-                    <div
-                      key={address._id}
-                      className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
-                        selectedAddress?._id === address._id
-                          ? "border-blue-500 bg-blue-50"
-                          : "hover:border-gray-400"
-                      }`}
-                      onClick={() => setSelectedAddress(address)}
-                    >
-                      <p className="font-semibold text-gray-800">
-                        {address.full_name}
-                      </p>
-                      <p className="text-sm text-gray-600">{address.street}</p>
-                      <p className="text-sm text-gray-600">
-                        {address.city}, {address.state} {address.pincode}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Phone: {address.phone_number}
-                      </p>
-                    </div>
-                  ))}
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+              <div className="lg:col-span-2 space-y-8">
+                {/* Delivery Address Section */}
+                <section className="bg-gray-50 rounded-2xl p-6 transition-all duration-300 hover:shadow-md">
+                  <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <MapPin className="w-6 h-6 mr-2 text-purple-500" />
+                    Delivery Address
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {addresses.map((address) => (
+                      <div
+                        key={address._id}
+                        className={`border rounded-xl p-4 cursor-pointer transition-all duration-300 ${selectedAddress?._id === address._id
+                          ? "border-purple-500 bg-purple-50 shadow-md"
+                          : "hover:border-gray-400 hover:shadow-sm"
+                          }`}
+                        onClick={() => setSelectedAddress(address)}
+                      >
+                        <p className="font-semibold text-gray-800">{address.full_name}</p>
+                        <p className="text-sm text-gray-600">{address.street}</p>
+                        <p className="text-sm text-gray-600">
+                          {address.city}, {address.state} {address.pincode}
+                        </p>
+                        <p className="text-sm text-gray-600">Phone: {address.phone_number}</p>
+                      </div>
+                    ))}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setIsAddressModalOpen(true)}
-                    className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="mt-4 w-full py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition duration-300 transform hover:scale-105"
                   >
                     <Plus className="inline-block w-5 h-5 mr-2" />
                     Add New Address
                   </button>
-                </div>
-              </section>
+                </section>
 
-              <section>
-                <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                  Payment Method
+                {/* Payment Method Section */}
+                <section className="bg-gray-50 rounded-2xl p-6 transition-all duration-300 hover:shadow-md">
+                  <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <CreditCardIcon className="w-6 h-6 mr-2 text-purple-500" />
+                    Payment Method
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {paymentMethods.map((method) => (
+                      <div
+                        key={method.id}
+                        className={`border rounded-xl p-4 cursor-pointer transition-all duration-300 ${selectedPaymentMethod?.id === method.id
+                          ? "border-purple-500 bg-purple-50 shadow-md"
+                          : "hover:border-gray-400 hover:shadow-sm"
+                          }`}
+                        onClick={() => setSelectedPaymentMethod(method)}
+                      >
+                        <div className="flex items-center justify-center">
+                          <method.icon className="w-8 h-8 text-purple-500 mb-2" />
+                        </div>
+                        <p className="font-semibold text-gray-800 text-center">{method.name}</p>
+                        {method.id === "cash_on_delivery" && (
+                          <p className="text-xs text-gray-600 text-center mt-1">
+                            Pay when your order arrives
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Coupons Section */}
+                <section className="bg-gray-50 rounded-2xl p-6 transition-all duration-300 hover:shadow-md">
+                  <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <Tag className="w-6 h-6 mr-2 text-purple-500" />
+                    Coupons
+                  </h2>
+                  <div className="space-y-4">
+                    {Array.isArray(coupons) && coupons.length > 0 ? (
+                      coupons.map((coupon, index) => (
+                        <div
+                          key={`coupon-${coupon._id || index}`}
+                          className="border rounded-xl p-4 transition-all duration-300 hover:shadow-sm"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-gray-800">{coupon.code}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(coupon.code);
+                                    toast.success('Coupon code copied!');
+                                  }}
+                                  className="text-gray-500 hover:text-purple-600 p-1 rounded-md 
+                                    hover:bg-purple-50 transition-all duration-300"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </button>
+                              </div>
+                              <p className="text-sm text-gray-600">{coupon.offerPercentage}% off</p>
+                              {coupon.description && (
+                                <p className="text-xs text-gray-500">{coupon.description}</p>
+                              )}
+                              {coupon.expiresOn && (
+                                <p className="text-xs text-gray-400">
+                                  Expires: {new Date(coupon.expiresOn).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCouponCode(coupon.code);
+                                handleApplyCoupon();
+                              }}
+                              className="px-4 py-2 text-purple-600 hover:text-purple-800 font-medium transition duration-300 rounded-lghover:bg-purple-50"
+                            >
+                              Apply
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">No coupons available</p>
+                    )}
+
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value)}
+                          placeholder="Enter coupon code"
+                          className="flex-grow px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyCoupon}
+                          className="px-6 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                      {couponError && (
+                        <p className="text-red-600 text-sm mt-2">{couponError}</p>
+                      )}
+                    </div>
+
+                    {appliedCoupon && (
+                      <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-green-800">
+                              Applied: {appliedCoupon.code}
+                            </p>
+                            <p className="text-sm text-green-600">
+                              {appliedCoupon.discountValue}% off
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveCoupon}
+                            className="text-red-600 hover:text-red-800 font-medium transition duration-300 px-3 py-1 rounded-lghover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              {/* Order Summary Section */}
+              <div className="bg-gray-50 rounded-2xl p-6 h-fit sticky top-8">
+                <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                  <Truck className="w-6 h-6 mr-2 text-purple-500" />
+                  Order Summary
                 </h2>
                 <div className="space-y-4">
-                  {paymentMethods.map((method) => (
-                    <div
-                      key={method.id}
-                      className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
-                        selectedPaymentMethod?.id === method.id
-                          ? "border-blue-500 bg-blue-50"
-                          : "hover:border-gray-400"
-                      }`}
-                      onClick={() => setSelectedPaymentMethod(method)}
-                    >
-                      <div className="flex items-center">
-                        <method.icon className="w-6 h-6 mr-3 text-gray-600" />
-                        <div>
-                          <p className="font-semibold text-gray-800">
-                            {method.name}
+                  {cartItems.map((item) => (
+                    <div key={item.product._id} className="flex justify-between items-center">
+                      <div className="flex-1">
+                        <p className="text-gray-800">{item.product.name}</p>
+                        <p className="text-sm text-gray-600">
+                          Size: {item.size} | Qty: {item.quantity}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-800 font-medium">
+                          ₹{((item.discountedPrice || item.price) * item.quantity).toFixed(2)}
+                        </p>
+                        {item.discountedPrice && item.discountedPrice < item.price && (
+                          <p className="text-sm text-gray-500 line-through">
+                            ₹{(item.price * item.quantity).toFixed(2)}
                           </p>
-                          {method.id === "cash_on_delivery" && (
-                            <p className="text-sm text-gray-600">
-                              Pay when your order arrives
-                            </p>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
                   ))}
-                </div>
-              </section>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                Order Summary
-              </h2>
-              <div className="space-y-4">
-                {cartItems.map((item) => (
-                  <div key={item.product._id} className="flex justify-between">
-                    <span className="text-gray-800">
-                      {item.product.name} ({item.size}) x {item.quantity}
-                    </span>
-                    <span className="text-gray-800 font-medium">
-                      ₹{(item.discountedPrice * item.quantity).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="text-gray-800 font-medium">
-                      ₹{orderSummary.subtotal.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tax (8%)</span>
-                    <span className="text-gray-800 font-medium">
-                      ₹{orderSummary.tax.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Shipping</span>
-                    <span className="text-gray-800 font-medium">
-                      ₹{orderSummary.shipping.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-lg mt-4">
-                    <span>Total</span>
-                    <span>₹{orderSummary.total.toFixed(2)}</span>
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="text-gray-800 font-medium">
+                        ₹{orderSummary.subtotal.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Tax (8%)</span>
+                      <span className="text-gray-800 font-medium">
+                        ₹{orderSummary.tax.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Shipping</span>
+                      <span className="text-gray-800 font-medium">
+                        ₹{orderSummary.shipping.toFixed(2)}
+                      </span>
+                    </div>
+                    {orderSummary.discount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount</span>
+                        <span>-₹{orderSummary.discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold text-lg mt-4">
+                      <span>Total</span>
+                      <span>₹{orderSummary.total.toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-6">
-                <button
-                  type="submit"
-                  disabled={!selectedAddress || !selectedPaymentMethod || loading}
-                  className={`w-full py-3 rounded-lg transition-colors focus:outline-none ${
-                    !selectedAddress || !selectedPaymentMethod || loading
+                <div className="mt-8">
+                  <button
+                    type="submit"
+                    disabled={!selectedAddress || !selectedPaymentMethod || loading}
+                    className={`w-full py-4 rounded-xl text-white font-semibold text-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${!selectedAddress || !selectedPaymentMethod || loading
                       ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-green-500 hover:bg-green-600 text-white"
-                  }`}
-                >
-                  {loading ? "Processing..." : "Place Order"}
-                </button>
+                      : "bg-purple-600 hover:bg-purple-700"
+                      }`}
+                  >
+                    {loading ? "Processing..." : "Place Order"}
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
       <AddressFormModal

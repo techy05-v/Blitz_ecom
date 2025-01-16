@@ -1,6 +1,5 @@
+const mongoose = require("mongoose");
 
-
-const mongoose= require("mongoose")
 const orderSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -29,6 +28,17 @@ const orderSchema = new mongoose.Schema({
     discountedPrice: {
       type: Number,
       required: true
+    },
+    itemStatus: {
+      type: String,
+      enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
+      default: 'Pending'
+    },
+    cancelReason: {
+      type: String
+    },
+    cancelledAt: {
+      type: Date
     }
   }],
   shippingAddress: {
@@ -53,27 +63,26 @@ const orderSchema = new mongoose.Schema({
   orderStatus: {
     type: String,
     enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
-    default: 'Pending',
-    set: status => status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
-},
-// ..
+    default: 'Pending'
+  },
   orderId: {
     type: String,
     unique: true,
     default: () => 'ORD' + Date.now() + Math.floor(Math.random() * 1000)
   },
-  orderNotes: {
-    type: String
+  couponApplied: {
+    couponId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Coupon'
+    },
+    discountAmount: Number
   },
-  estimatedDeliveryDate: {
-    type: Date
-  },
-  cancelReason: {
-    type: String
-  }
+  orderNotes: String,
+  estimatedDeliveryDate: Date,
+  cancelReason: String
 }, {
   timestamps: true
 });
 
 orderSchema.index({ user: 1, orderId: 1 });
-module.exports= mongoose.model("Order",orderSchema)
+module.exports = mongoose.model("Order", orderSchema);

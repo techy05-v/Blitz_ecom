@@ -1,67 +1,62 @@
-const mongoose= require("mongoose")
-const { type } = require("os")
+// In couponSchema.js
 
-const  couponSchema = new mongoose.Schema({
-    code:{
-        type:String,
+const mongoose = require('mongoose');
+
+const couponSchema = new mongoose.Schema({
+    code: {
+        type: String,
         required: true,
-        unique:true,
-        uppercase:true,
-        trim:true
+        unique: true,
+        uppercase: true
     },
-    description:{
-        type:String,
-        required:true
+    description: {
+        type: String,
+        required: true
     },
-    createdOn:{
-        type:Date,
-        default:Date.now,
-        required:true
+    expiresOn: {
+        type: Date,
+        required: true
     },
-    expiresOn:{
-        type:Date,
-        required:true
+    offerPercentage: {
+        type: Number,
+        required: true
     },
-    offerPercentage:{
-        type:Number,
-        required:true,
-        min:0,
-        max:100
+    minimumPrice: {
+        type: Number,
+        required: true
     },
-    minimumPrice:{
-        type:Number,
-        required:true,
-        min:0,
-
+    maximumDiscount: {
+        type: Number,
+        required: true
     },
-    maximumDiscount:{
-        type:Number,
-        required:true,
-        min:0
+    isList: {
+        type: Boolean,
+        default: true
     },
-    isList:{
-        type:Boolean,
-        default:true,
-
+    usedCount: {
+        type: Number,
+        default: 0
     },
-    usageLimit:{
-        type:Number,
-        required:true,
-        min:1
+    usageLimit: {
+        type: Number,
+        default: 1 // Number of times each user can use the coupon
     },
-    usedCount:{
-        type:Number,
-        default:0
+    maxGlobalUsage: {
+        type: Number,
+        default: 10 // Total number of times the coupon can be used across all users
     },
-    userId:[{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"User"
+    userId: [{
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        usageCount: {
+            type: Number,
+            default: 0
+        }
     }]
-},{
-    timestamps:true
-})
+}, {
+    timestamps: true
+});
 
-//index foer faster coupons
-couponSchema.index({code:1})
-couponSchema.index({isList:1,expiresOn:1})
-module.exports =mongoose.model("Coupon",couponSchema)
+module.exports = mongoose.model('Coupon', couponSchema);

@@ -46,7 +46,7 @@ const offerApi = {
     // Get offers by product
     getProductOffers: async (productId) => {
       try {
-        const response = await axiosInstance.get(`/offers/product/${productId}`);
+        const response = await axiosInstance.get(`/user/offers/product/${productId}`);
         return response.data;
       } catch (error) {
         throw error.response?.data || error.message;
@@ -56,7 +56,7 @@ const offerApi = {
     // Get offers by category
     getCategoryOffers: async (categoryId) => {
       try {
-        const response = await axiosInstance.get(`/offers/category/${categoryId}`);
+        const response = await axiosInstance.get(`/user/offers/category/${categoryId}`);
         return response.data;
       } catch (error) {
         throw error.response?.data || error.message;

@@ -57,7 +57,27 @@ const orderService = {
                 message: 'Error cancelling order'
             };
         }
-    }
+    },
+    cancelOrderItem: async (orderId, itemId, cancelReason) => {
+        if (!orderId || !itemId) {
+            throw new Error('Order ID and Item ID are required');
+        }
+
+        try {
+            const response = await axiosInstance.post(
+                `/user/orders/${orderId}/items/${itemId}/cancel`,
+                { cancelReason }
+            );
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || {
+                success: false,
+                message: 'Error cancelling order item',
+                error: error.message
+            };
+        }
+    },
+
 };
 
 export default orderService;

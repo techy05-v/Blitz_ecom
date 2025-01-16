@@ -1,16 +1,16 @@
 const Order = require('../model/orderSchema');
 const Cart = require('../model/cartSchema');
 const ProductSchema = require('../model/productSchema');
-
-
+const {validateCoupon , markCouponAsUsed } = require('../controller/couponController')
+const Coupon = require("../model/couponSchema")
 // Create a new order from cart
 const createOrder = async (req, res) => {
     try {
-        const { shippingAddressId, paymentMethod, orderNotes } = req.body;
+        const { shippingAddressId, paymentMethod, orderNotes, appliedCouponId } = req.body;
         const userId = req.user.data.id;
-        console.log("userID", userId)
+        console.log("userID", userId);
 
-        // Get user's cart
+        // Get user's cart with populated product details
         const cart = await Cart.findOne({ user: userId })
             .populate({
                 path: "items.product",
@@ -23,18 +23,16 @@ const createOrder = async (req, res) => {
             return res.status(400).json({ message: 'Cart is empty' });
         }
 
-
+        // Validate product and category availability
         for (const item of cart.items) {
             const product = item.product;
 
-            // Check if product is active
             if (!product.isactive) {
                 return res.status(400).json({
                     message: `Product "${product.productName}" is currently unavailable`
                 });
             }
 
-            // Check if category is active
             if (!product.category.isactive) {
                 return res.status(400).json({
                     message: `Category "${product.category.CategoryName}" is currently unavailable`
@@ -42,7 +40,8 @@ const createOrder = async (req, res) => {
             }
         }
 
-        // Verify product availability and update stock
+        // Verify stock availability and prepare updates
+        const stockUpdates = [];
         for (const item of cart.items) {
             const product = await ProductSchema.findById(item.product._id);
             const sizeIndex = product.availableSizes.findIndex(s => s.size === item.size);
@@ -53,35 +52,93 @@ const createOrder = async (req, res) => {
                 });
             }
 
-            // Update product stock
-            product.availableSizes[sizeIndex].quantity -= item.quantity;
-
-            // Check total available quantity across all sizes
-            const totalRemainingStock = product.availableSizes.reduce(
-                (total, size) => total + size.quantity,
-                0
-            );
-
-            // Update product status based on total stock
-            product.status = totalRemainingStock > 0 ? 'active' : 'outOfStock';
-
-            await product.save();
+            // Store update information
+            stockUpdates.push({
+                productId: product._id,
+                sizeIndex,
+                quantity: item.quantity,
+                currentQuantity: product.availableSizes[sizeIndex].quantity
+            });
         }
 
-        // Rest of your order creation code...
+        let finalAmount = cart.totalAmount;
+        let appliedCoupon = null;
+
+        // Handle coupon if applied
+        if (appliedCouponId) {
+            try {
+                const coupon = await Coupon.findById(appliedCouponId);
+                if (!coupon) {
+                    return res.status(400).json({
+                        message: 'Invalid coupon'
+                    });
+                }
+        
+                const { discountAmount, finalAmount: discountedAmount } = await validateCoupon(
+                    coupon.code,
+                    cart.totalAmount,
+                    userId,
+                    appliedCouponId
+                );
+        
+                finalAmount = discountedAmount;
+                appliedCoupon = {
+                    couponId: appliedCouponId,
+                    discountAmount
+                };
+        
+            } catch (error) {
+                return res.status(400).json({
+                    message: `Coupon error: ${error.message}`
+                });
+            }
+        }
+
+        // Create order first
         const order = new Order({
             user: userId,
             items: cart.items,
             shippingAddress: shippingAddressId,
-            totalAmount: cart.totalAmount,
+            totalAmount: finalAmount,
             paymentMethod,
             orderNotes,
+            couponApplied: appliedCoupon,
             estimatedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         });
 
         await order.save();
 
-        // Clear cart after successful order
+        // Update stock levels with optimistic locking
+        for (const update of stockUpdates) {
+            const product = await ProductSchema.findById(update.productId);
+            
+            // Verify quantity hasn't changed
+            if (product.availableSizes[update.sizeIndex].quantity !== update.currentQuantity) {
+                // If quantity has changed, delete the order and return error
+                await Order.findByIdAndDelete(order._id);
+                return res.status(400).json({
+                    message: 'Stock levels have changed. Please try again.'
+                });
+            }
+
+            // Update stock level
+            product.availableSizes[update.sizeIndex].quantity -= update.quantity;
+            
+            const totalRemainingStock = product.availableSizes.reduce(
+                (total, size) => total + size.quantity,
+                0
+            );
+            
+            product.status = totalRemainingStock > 0 ? 'active' : 'outOfStock';
+            await product.save();
+        }
+
+        // Mark coupon as used if applied
+        if (appliedCoupon) {
+            await markCouponAsUsed(appliedCouponId, userId);
+        }
+
+        // Clear cart
         await Cart.findByIdAndUpdate(cart._id, {
             $set: { items: [], totalAmount: 0 }
         });
@@ -95,7 +152,7 @@ const createOrder = async (req, res) => {
         console.error('Error creating order:', error);
         res.status(500).json({ message: 'Error creating order', error: error.message });
     }
-}
+};
 // Get all orders for a user
 const getUserOrders = async (req, res) => {
     try {
@@ -161,13 +218,10 @@ const getOrderDetails = async (req, res) => {
 const cancelOrder = async (req, res) => {
     try {
         const { orderId } = req.params;
-        console.log(orderId, "order id from backend")
         const { cancelReason } = req.body;
-        console.log(cancelReason, "the body from frondend ")
         const userId = req.user.data.id;
-        console.log(userId, "user id from backend")
+        
         const order = await Order.findOne({ _id: orderId, user: userId });
-        console.log(order, "order of backend")
 
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
@@ -194,15 +248,14 @@ const cancelOrder = async (req, res) => {
 
             // Update product status based on total stock
             product.status = totalRemainingStock > 0 ? 'active' : 'outOfStock';
-            order.orderStatus = 'Cancelled';
-            order.cancelReason = cancelReason;
-            // Add this line to update payment status
-            order.paymentStatus = 'failed';
             await product.save();
         }
 
-        order.orderStatus = 'cancelled';
+        // Update order status using the correct enum value 'Cancelled'
+        order.orderStatus = 'Cancelled';
         order.cancelReason = cancelReason;
+        order.paymentStatus = 'failed';
+        
         await order.save();
 
         res.status(200).json({
@@ -210,10 +263,109 @@ const cancelOrder = async (req, res) => {
             order
         });
     } catch (error) {
-        console.log(error, "backend error")
+        console.error('Error in cancelOrder:', error);
         res.status(500).json({ message: 'Error cancelling order', error: error.message });
     }
-}
+};
+const cancelOrderItem = async (req, res) => {
+    try {
+        const { orderId, itemId } = req.params;
+        const { cancelReason } = req.body;
+        const userId = req.user.data.id;
+
+        // Find order and verify ownership
+        const order = await Order.findOne({ 
+            _id: orderId, 
+            user: userId 
+        }).populate('items.product');
+
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        // Find the specific item
+        const orderItem = order.items.id(itemId);
+        if (!orderItem) {
+            return res.status(404).json({ message: 'Item not found in order' });
+        }
+
+        // Validate order status
+        if (!['Pending', 'Processing'].includes(order.orderStatus)) {
+            return res.status(400).json({
+                message: 'Order items cannot be cancelled in current status'
+            });
+        }
+
+        // Check if item is already cancelled
+        if (orderItem.itemStatus === 'Cancelled') {
+            return res.status(400).json({
+                message: 'Item is already cancelled'
+            });
+        }
+
+        // Restore product quantity
+        const product = await ProductSchema.findById(orderItem.product);
+        const sizeIndex = product.availableSizes.findIndex(s => s.size === orderItem.size);
+        
+        if (sizeIndex !== -1) {
+            // Restore quantity
+            product.availableSizes[sizeIndex].quantity += orderItem.quantity;
+
+            // Update product status
+            const totalRemainingStock = product.availableSizes.reduce(
+                (total, size) => total + size.quantity,
+                0
+            );
+            product.status = totalRemainingStock > 0 ? 'active' : 'outOfStock';
+            await product.save();
+        }
+
+        // Update item status and details
+        orderItem.itemStatus = 'Cancelled';
+        orderItem.cancelReason = cancelReason;
+        orderItem.cancelledAt = new Date();
+
+        // Update order total amount
+        order.totalAmount -= orderItem.discountedPrice;
+
+        // Check if all items are cancelled
+        const allItemsCancelled = order.items.every(item => item.itemStatus === 'Cancelled');
+        if (allItemsCancelled) {
+            order.orderStatus = 'Cancelled';
+            order.cancelReason = 'All items cancelled';
+            order.paymentStatus = 'failed';
+        }
+
+        await order.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Item cancelled successfully',
+            data: {
+                order: {
+                    orderId: order.orderId,
+                    orderStatus: order.orderStatus,
+                    paymentStatus: order.paymentStatus,
+                    totalAmount: order.totalAmount,
+                    cancelledItem: {
+                        itemId: orderItem._id,
+                        productName: orderItem.product.productName,
+                        cancelReason,
+                        cancelledAt: orderItem.cancelledAt
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in cancelOrderItem:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error cancelling order item', 
+            error: error.message 
+        });
+    }
+};
 
 //---------------// Update order status (admin only)
 const getAllOrderByAdmin = async (req, res) => {
@@ -307,4 +459,5 @@ module.exports = {
     getOrderDetails,
     updateOrderStatus,
     getAllOrderByAdmin,
+    cancelOrderItem 
 }

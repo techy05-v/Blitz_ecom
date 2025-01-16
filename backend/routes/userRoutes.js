@@ -5,15 +5,15 @@ const {googleAuth,getProductById,getAllProductsByUser,getAllCategories,resetPass
 const {verifyUser} = require("../middleware/auth")
 const {addAddress,editAddress,deleteAddress,getAddresses}= require("../controller/addressController")
 const{addToCart,getCartItems ,clearCart ,removeCartItems,updateCartItem }=require("../controller/cartController")
-const{createOrder,getUserOrders,cancelOrder,getOrderDetails,}=require("../controller/orderController")
+const{createOrder,getUserOrders,cancelOrder,getOrderDetails,cancelOrderItem}=require("../controller/orderController")
 const { createProfile, getProfile, updateProfile, deleteProfileImage } = require("../controller/profileController");
-const {addToWishlist,getWishlist,clearWishlist,removeFromWishlist}= require("../controller/wishlistController")
+const {addToWishlist,getWishlist,clearWishlist,removeFromWishlist,}= require("../controller/wishlistController")
 const {
     getActiveOffers,
     getProductOffers,
     getCategoryOffers,
 } = require('../controller/offerController');
-const {applyCoupon,validateCoupon,listCoupons} =require("../controller/couponController")
+const {applyCoupon,listCoupons} =require("../controller/couponController")
 userRoute.post("/google",googleAuth)
 userRoute.get("/product/:id", verifyUser,getProductById)
 userRoute.get("/products",verifyUser,getAllProductsByUser)
@@ -45,6 +45,9 @@ userRoute.post("/order/create",verifyUser,createOrder)
 userRoute.get("/orders/my-orders",verifyUser,getUserOrders)
 userRoute.get("/orders/details/:orderId",verifyUser,getOrderDetails)
 userRoute.put("/orders/cancel/:orderId",verifyUser,cancelOrder)
+userRoute.post("/orders/:orderId/items/:itemId/cancel",verifyUser,cancelOrderItem)
+
+
 
 userRoute.post("/profile/create", verifyUser, createProfile);
 userRoute.get("/profileget", verifyUser, getProfile); 
@@ -66,9 +69,8 @@ userRoute.get('/offers/active', verifyUser, getActiveOffers);
 userRoute.get('/offers/product/:productId', verifyUser, getProductOffers);
 userRoute.get('/offers/category/:categoryId', verifyUser, getCategoryOffers);
 
-userRoute.post("/applycoupon",verifyUser,applyCoupon)
-userRoute.post("/validate",verifyUser,validateCoupon)
-userRoute.get("/listcopons",verifyUser,listCoupons)
+userRoute.post("/coupons/apply",verifyUser,applyCoupon)
+userRoute.get("/coupons/list",verifyUser,listCoupons)
 
 
 

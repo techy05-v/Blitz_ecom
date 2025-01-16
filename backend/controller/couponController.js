@@ -1,6 +1,59 @@
-
-const Coupon=  require("../model/couponSchema")
+const Coupon = require("../model/couponSchema")
 const mongoose = require("mongoose");
+const Order = require("../model/orderSchema")
+const validateCoupon = async (code, cartTotal, userId, appliedCouponId = null) => {
+    console.log('Validating coupon with:', { code, cartTotal, userId, appliedCouponId });
+
+    if (!code || !cartTotal || !userId) {
+        console.log('Missing required fields:', { code, cartTotal, userId });
+        throw new Error("Missing required fields");
+    }
+
+    const totalAmount = parseFloat(cartTotal);
+    if (isNaN(totalAmount)) {
+        throw new Error("Invalid cart total amount");
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const coupon = await Coupon.findOne({
+        code: code.toUpperCase(),
+        isList: true,
+        expiresOn: { $gt: new Date() }
+    });
+
+    if (!coupon) {
+        throw new Error("Invalid or expired coupon");
+    }
+
+    // Check global usage limit
+    if (coupon.usedCount >= coupon.maxGlobalUsage) {
+        throw new Error("Coupon has reached its maximum global usage limit");
+    }
+
+    // Check individual user usage
+    const userUsage = coupon.userId.find(usage => usage.userId.toString() === userObjectId.toString());
+    if (userUsage && userUsage.usageCount >= coupon.usageLimit) {
+        throw new Error(`You have already used this coupon ${coupon.usageLimit} time(s)`);
+    }
+
+    if (totalAmount < coupon.minimumPrice) {
+        throw new Error(`Minimum purchase amount required: ₹${coupon.minimumPrice}`);
+    }
+
+    let discountAmount = (totalAmount * coupon.offerPercentage) / 100;
+    discountAmount = Math.min(discountAmount, coupon.maximumDiscount);
+
+    return {
+        couponId: coupon._id,
+        discountAmount,
+        finalAmount: totalAmount - discountAmount,
+        couponCode: coupon.code,
+        offerPercentage: coupon.offerPercentage
+    };
+};
+
+// Rest of the controller remains the same...
 const createCoupon = async (req, res) => {
     try {
         const {
@@ -10,38 +63,15 @@ const createCoupon = async (req, res) => {
             offerPercentage,
             minimumPrice,
             maximumDiscount,
-            usageLimit,
+            usageLimit = 1,  // Individual usage limit
+            maxGlobalUsage = 100  // Global usage limit
         } = req.body;
 
         // Validate required fields
-        if (!code || !description || !expiresOn || !offerPercentage || !minimumPrice || !maximumDiscount || !usageLimit) {
+        if (!code || !description || !expiresOn || !offerPercentage || !minimumPrice || !maximumDiscount) {
             return res.status(400).json({
                 success: false,
                 message: "All fields are required"
-            });
-        }
-
-        // Validate numeric fields
-        if (offerPercentage <= 0 || maximumDiscount <= 0 || minimumPrice <= 0 || usageLimit <= 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Numeric values must be greater than 0"
-            });
-        }
-
-        // Validate offer percentage is reasonable
-        if (offerPercentage > 100) {
-            return res.status(400).json({
-                success: false,
-                message: "Offer percentage cannot exceed 100%"
-            });
-        }
-
-        // Validate expiry date 
-        if (new Date(expiresOn) <= new Date()) {
-            return res.status(400).json({
-                success: false,
-                message: "Expiry date must be in the future"
             });
         }
 
@@ -52,9 +82,10 @@ const createCoupon = async (req, res) => {
             offerPercentage,
             minimumPrice,
             maximumDiscount,
-            usageLimit,
             isList: true,
             usedCount: 0,
+            usageLimit,    // Individual usage limit
+            maxGlobalUsage, // Global usage limit
             userId: []
         });
 
@@ -80,79 +111,81 @@ const createCoupon = async (req, res) => {
 
 const applyCoupon = async (req, res) => {
     try {
-        const { code, cartTotal, userId } = req.body;
-
-        if (!code || !cartTotal || !userId) {
-            return res.status(400).json({
-                success: false,
-                message: "Missing required fields"
-            });
-        }
-
-        const coupon = await Coupon.findOne({
-            code: code.toUpperCase(),
-            isList: true,
-            expiresOn: { $gt: new Date() }
+        const { code, cartTotal, userId, appliedCouponId } = req.body;
+        console.log("Applying coupon with data:", {
+            code,
+            cartTotal,
+            userId,
+            appliedCouponId
         });
+        
+        const validationResult = await validateCoupon(code, cartTotal, userId, appliedCouponId);
 
-        if (!coupon) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid or expired coupon"
-            });
-        }
-
-        // Check if user has already used the coupon
-        if (coupon.userId.includes(userId)) {
-            return res.status(400).json({
-                success: false,
-                message: "You have already used this coupon"
-            });
-        }
-
-        // Check usage limit
-        if (coupon.usedCount >= coupon.usageLimit) {
-            return res.status(400).json({
-                success: false,
-                message: "Coupon usage limit reached"
-            });
-        }
-
-        // Check minimum price requirement 
-        if (cartTotal < coupon.minimumPrice) {
-            return res.status(400).json({
-                success: false,
-                message: `Minimum purchase amount required: ₹${coupon.minimumPrice}`
-            });
-        }
-
-        let discountAmount = (cartTotal * coupon.offerPercentage) / 100;
-
-        // Apply maximum discount limit
-        discountAmount = Math.min(discountAmount, coupon.maximumDiscount);
-
-        // Update coupon usage
-        coupon.userId.push(userId);
-        coupon.usedCount = coupon.usedCount + 1;
-
-        // If usage limit reached, deactivate coupon
-        if (coupon.usedCount >= coupon.usageLimit) {
-            coupon.isList = false;
-        }
-
-        await coupon.save();
+        console.log("Validation result:", validationResult);
 
         res.status(200).json({
             success: true,
-            discountAmount,
-            finalAmount: cartTotal - discountAmount,
+            ...validationResult,
             message: "Coupon applied successfully"
         });
     } catch (error) {
-        res.status(500).json({
+        console.error("Coupon application error:", error);
+        res.status(400).json({
             success: false,
             message: error.message
         });
+    }
+};
+
+const markCouponAsUsed = async (couponId, userId) => {
+    try {
+        console.log('Marking coupon as used:', { couponId, userId });
+        const userObjectId = new mongoose.Types.ObjectId(userId);
+        
+        // Find the coupon
+        const coupon = await Coupon.findById(couponId);
+        if (!coupon) {
+            throw new Error("Coupon not found");
+        }
+
+        // Check if user has already used this coupon
+        const existingUserIndex = coupon.userId.findIndex(
+            usage => usage.userId.toString() === userObjectId.toString()
+        );
+
+        let updateOperation;
+        if (existingUserIndex === -1) {
+            // First time user is using this coupon
+            updateOperation = {
+                $inc: { usedCount: 1 },
+                $push: { userId: { userId: userObjectId, usageCount: 1 } }
+            };
+        } else {
+            // User has used this coupon before, increment their usage count
+            updateOperation = {
+                $inc: { 
+                    usedCount: 1,
+                    [`userId.${existingUserIndex}.usageCount`]: 1
+                }
+            };
+        }
+
+        // Only mark coupon as inactive if global usage limit is reached
+        if (coupon.usedCount + 1 >= coupon.maxGlobalUsage) {
+            updateOperation.$set = { isList: false };
+        }
+
+        const updatedCoupon = await Coupon.findByIdAndUpdate(
+            couponId,
+            updateOperation,
+            { new: true }
+        );
+
+        console.log('Updated coupon:', updatedCoupon);
+        return true;
+    } catch (error) {
+        console.error('Error marking coupon as used:', error);
+        throw error;
     }
 };
 
@@ -160,8 +193,7 @@ const listCoupons = async (req, res) => {
     try {
         const coupons = await Coupon.find({
             isList: true,
-            expiresOn: { $gt: new Date() },
-            $expr: { $lt: ["$usedCount", "$usageLimit"] }  // Fixed comparison
+            expiresOn: { $gt: new Date() }
         }).select('-userId');
 
         res.status(200).json({
@@ -209,57 +241,12 @@ const deleteCoupon = async (req, res) => {
     }
 };
 
-const validateCoupon = async (req, res) => {
-    try {
-        const { code, cartTotal, userId } = req.body;
-
-        if (!code || !cartTotal || !userId) {
-            return res.status(400).json({
-                success: false,
-                message: "Missing required fields"
-            });
-        }
-
-        const coupon = await Coupon.findOne({
-            code: code.toUpperCase(),
-            isList: true,
-            expiresOn: { $gt: new Date() }
-        });
-
-        if (!coupon) {
-            return res.status(200).json({
-                success: false,
-                isValid: false,
-                message: "Invalid or expired coupon"
-            });
-        }
-
-        const validationResults = {
-            isValid: true,
-            minimumPriceValid: cartTotal >= coupon.minimumPrice,
-            notUsedByUser: !coupon.userId.includes(userId),
-            usageLimitValid: coupon.usedCount < coupon.usageLimit
-        };
-
-        res.status(200).json({
-            success: true,
-            ...validationResults,
-            minimumPrice: coupon.minimumPrice,
-            offerPercentage: coupon.offerPercentage,
-            maximumDiscount: coupon.maximumDiscount
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-
 module.exports = {
     createCoupon,
     applyCoupon,
     listCoupons,
     deleteCoupon,
+    markCouponAsUsed,
     validateCoupon
+
 };

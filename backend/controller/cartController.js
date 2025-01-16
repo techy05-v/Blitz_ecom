@@ -149,40 +149,85 @@ const addToCart = async (req, res) => {
 // Rest of the controller functions remain the same
 const getCartItems = async (req, res) => {
     try {
-        const userId = req.user.data.id
-        console.log(userId)
+        const userId = req.user.data.id;
         const cart = await Cart.findOne({ user: userId })
             .populate({
                 path: 'items.product',
-                select: 'productName  images description status',
-                match: { isactive: true }
-            })
+                select: 'productName images description regularPrice salePrice discountPercent offers isactive availableSizes category',
+                match: { isactive: true },
+                populate: [
+                    {
+                        path: 'offers',
+                        match: {
+                            isActive: true,
+                            startDate: { $lte: new Date() },
+                            endDate: { $gte: new Date() }
+                        },
+                        select: 'name discountPercent startDate endDate'
+                    },
+                    {
+                        path: 'category',
+                        select: 'name offers isactive',
+                        populate: {
+                            path: 'offers',
+                            match: {
+                                isActive: true,
+                                startDate: { $lte: new Date() },
+                                endDate: { $gte: new Date() }
+                            },
+                            select: 'name discountPercent startDate endDate'
+                        }
+                    }
+                ]
+            });
+
         if (!cart) {
             return res.status(404).json({
                 success: false,
-                message: "Cart is empty ",
+                message: "Cart is empty",
                 cart: {
                     items: [],
                     totalAmount: 0
                 }
-            })
+            });
         }
-        cart.items = cart.items.filter(item => item.product !== null);
+
+        // Filter out null products and recalculate prices
+        cart.items = cart.items
+            .filter(item => item.product !== null)
+            .map(item => {
+                const price = Number(item.price || item.product.regularPrice);
+                const discountedPrice = Number(item.discountedPrice || item.product.salePrice || price);
+
+                return {
+                    ...item.toObject(),
+                    price: price,
+                    discountedPrice: discountedPrice
+                };
+            });
+
+        // Recalculate total amount with updated prices
+        cart.totalAmount = cart.items.reduce((total, item) => {
+            return total + (Number(item.discountedPrice || 0) * Number(item.quantity || 0));
+        }, 0);
+
+        await cart.save();
+
         return res.status(200).json({
             success: true,
             message: "Cart items fetched successfully",
             cart
-        })
-
+        });
     }
     catch (error) {
-        console.log("Get cart items:", error)
+        console.log("Get cart items:", error);
         return res.status(500).json({
             success: false,
             message: "Error in getting cart items",
-        })
+            error: error.message
+        });
     }
-}
+};
 
 const updateCartItem = async (req, res) => {
     try {
