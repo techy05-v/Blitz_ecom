@@ -20,7 +20,7 @@ import EditPage from "../components/adminComponents/EditPage";
 import PublicRoute from "../routes/ProtectRoute/PublicRoute";
 import PrivateRoute from "./ProtectRoute/PrivateRoute";
 import ErrorPage from "../pages/Error/ErrorPage"; 
-
+import OrderDetails from "../components/adminComponents/orderDetails";
 function AdminRoutes() {
   return (
     <Routes>
@@ -52,6 +52,8 @@ function AdminRoutes() {
         <Route path="/banner" element={<Banner />} />
         <Route path="/coupon" element={<Coupon />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="orders/:orderId" element={<OrderDetails/>}/>
+
       </Route>
       {/* Catch-all route for undefined paths */}
       <Route path="*" element={<ErrorPage />} />

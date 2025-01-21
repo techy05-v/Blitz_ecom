@@ -29,6 +29,22 @@ const orderService = {
         }
     },
 
+    getAdminOrderById: async (orderId) => {
+        console.log("vbcghvghfvd",orderId)
+        if (!orderId) {
+            throw new Error('Order ID is required');
+        }
+        try {
+            const response = await axiosInstance.get(`/admin/orders/details/${orderId}`);
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || {
+                success: false,
+                message: 'Error fetching order details'
+            };
+        }
+    },
+
     getUserOrders: async (params = {}) => {
         try {
             const { page = 1, limit = 10 } = params;
@@ -59,17 +75,27 @@ const orderService = {
         }
     },
     cancelOrderItem: async (orderId, itemId, cancelReason) => {
+        console.log("Entered the function cancel order item api service-------------------------")
         if (!orderId || !itemId) {
             throw new Error('Order ID and Item ID are required');
         }
-
+    
         try {
+            console.log('Attempting to cancel item:', {
+                orderId,
+                itemId,
+                cancelReason
+            });
+            
             const response = await axiosInstance.post(
                 `/user/orders/${orderId}/items/${itemId}/cancel`,
                 { cancelReason }
             );
+            
+            // console.log('Cancel item response:', response.data);
             return response.data;
         } catch (error) {
+            console.error('Cancel item error:', error);
             throw error.response?.data || {
                 success: false,
                 message: 'Error cancelling order item',

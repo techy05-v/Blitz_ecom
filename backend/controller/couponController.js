@@ -36,7 +36,7 @@ const validateCoupon = async (code, cartTotal, userId, appliedCouponId = null) =
     if (userUsage && userUsage.usageCount >= coupon.usageLimit) {
         throw new Error(`You have already used this coupon ${coupon.usageLimit} time(s)`);
     }
-
+    
     if (totalAmount < coupon.minimumPrice) {
         throw new Error(`Minimum purchase amount required: ₹${coupon.minimumPrice}`);
     }

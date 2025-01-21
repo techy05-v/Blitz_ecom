@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Truck, Package, Clock, XCircle, ArrowLeft, CreditCard, MapPin, Home, Briefcase, Map, AlertCircle } from 'lucide-react';
+import { CheckCircle, Truck, Package, Clock, XCircle, ArrowLeft, CreditCard, MapPin, Home, Briefcase, Map, AlertCircle,RefreshCw } from 'lucide-react';
 import orderService from '../../api/orderService/orderService';
 import ConfirmationModal from '../../confirmationModal/ConfirmationMadal';
-
+import { handleRequestReturn } from '../../api/returnService/returnService';
 const OrderDetails = () => {
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
@@ -12,46 +12,96 @@ const OrderDetails = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [cancellingItemId, setCancellingItemId] = useState(null);
+  const [returningItemId, setReturningItemId] = useState(null);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnLoading, setReturnLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchOrderDetails = async () => {
-      try {
-        const response = await orderService.getOrderById(orderId);
-        if (response && response.order) {
-          // Add fallback defaults for missing fields
-          const validatedOrder = {
-            ...response.order,
-            originalAmount: response.order.originalAmount || 0,
-            currentAmount: response.order.currentAmount || 0,
-            items: response.order.items.map(item => ({
+
+  const fetchOrderDetails = async () => {
+    try {
+      const response = await orderService.getOrderById(orderId);
+      console.log('API Response:', response);
+      if (response && response.order) {
+        const validatedOrder = {
+          ...response.order,
+          originalAmount: response.order.originalAmount || 0,
+          currentAmount: response.order.currentAmount || 0,
+          items: Array.isArray(response.order.items)
+            ? response.order.items.map(item => ({
               ...item,
               currentPrice: item.currentPrice || 0,
               originalPrice: item.originalPrice || 0,
               quantity: item.quantity || 0,
               size: item.size || 'N/A',
-            })),
-          };
-          setOrder(validatedOrder);
-        } else {
-          setError('No order data received');
-        }
-      } catch (err) {
-        setError(err.message || 'Error fetching order details');
-      } finally {
-        setLoading(false);
+              itemStatus: item.itemStatus || 'Pending',
+              returnStatus: item.returnStatus || null,
+              returnReason: item.returnReason || ''
+            }))
+            : []
+        };
+        console.log('Validated Order:', validatedOrder);
+        setOrder(validatedOrder);
+      } else {
+        setError('No order data received');
       }
-    };
-  
-    fetchOrderDetails();
-  }, [orderId]);
-  
-
+    } catch (err) {
+      setError(err.message || 'Error fetching order details');
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleCancelOrder = () => {
     setCancellingItemId(null);
     setIsModalOpen(true);
   };
+  const handleReturnItem = (itemId) => {
+    setReturningItemId(itemId);
+    setReturnReason(''); // Reset reason when opening modal
+    setIsModalOpen(true);
+  };
 
-  const handleCancelItem = (itemId) => {
+  const handleReturnReasonChange = (e) => {
+    setReturnReason(e.target.value);
+  };
+
+  // functions to confrim return request 
+  const confirmReturnItem = async () => {
+    if (!returnReason.trim()) {
+      setError('Please provide a reason for return');
+      return;
+    }
+
+    setReturnLoading(true);
+    try {
+      const response = await handleRequestReturn({
+        orderId: order.orderId,
+        itemId: returningItemId,
+        reason: returnReason
+      });
+
+      if (response.success) {
+        // Fetch fresh order data after successful return request
+        await fetchOrderDetails();
+        setError(null);
+      } else {
+        throw new Error(response.error);
+      }
+    } catch (err) {
+      setError(`Failed to request return: ${err.message}`);
+    } finally {
+      setReturnLoading(false);
+      setIsModalOpen(false);
+      setReturningItemId(null);
+      setReturnReason('');
+    }
+  };
+  const handleItemCancel = (itemId) => {
+    if (!itemId) {
+      console.error('No item ID provided for cancellation');
+      setError('Unable to cancel item: Invalid item ID');
+      return;
+    }
+    console.log('Cancel button clicked for item:', itemId);
     setCancellingItemId(itemId);
     setIsModalOpen(true);
   };
@@ -59,32 +109,194 @@ const OrderDetails = () => {
   const confirmCancelItem = async () => {
     setIsModalOpen(false);
     setCancelLoading(true);
+
     try {
+      if (!orderId || !cancellingItemId) {
+        throw new Error('Order ID and Item ID are required');
+      }
+
+      console.log('Attempting to cancel item:', {
+        orderId,
+        itemId: cancellingItemId
+      });
+
       const response = await orderService.cancelOrderItem(
         orderId,
         cancellingItemId,
-        "customer requested cancellation"
+        "Customer requested cancellation"
       );
 
-      if (response && response.order) {
-        // Update both the item status and the overall order
+      console.log('Cancel item response:', response);
+
+      if (response && response.success && response.order) {
+        // Update the order state with the new data
         setOrder(prevOrder => ({
+          ...prevOrder,
           ...response.order,
-          items: prevOrder.items.map(item =>
-            item._id === cancellingItemId
-              ? { ...item, itemStatus: 'Cancelled' }  // Changed from status to itemStatus
-              : item
-          )
+          items: response.order.items.map(item => ({
+            ...item,
+            currentPrice: item.currentPrice || 0,
+            originalPrice: item.originalPrice || 0,
+            quantity: item.quantity || 0,
+            size: item.size || 'N/A',
+            itemStatus: item.itemStatus || 'Pending'
+          }))
         }));
+        setError(null); // Clear any existing errors
+      } else {
+        throw new Error('Invalid response format from cancel item request');
       }
     } catch (err) {
-      setError('Failed to cancel item: ' + err.message);
+      console.error('Error in confirmCancelItem:', err);
+      setError(`Failed to cancel item: ${err.message || 'Unknown error'}`);
     } finally {
       setCancelLoading(false);
       setCancellingItemId(null);
     }
   };
 
+  const OrderItem = ({ item, handleCancelItem }) => {
+    if (!item) return null;
+
+    const formatPrice = (amount) => {
+      return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
+    };
+
+    const getReturnStatusColor = (status) => {
+      switch (status?.toLowerCase()) {
+        case 'return_pending':
+          return 'bg-yellow-100 text-yellow-800';
+        case 'return_approved':
+          return 'bg-green-100 text-green-800';
+        case 'return_rejected':
+          return 'bg-red-100 text-red-800';
+        case 'return_completed':
+          return 'bg-blue-100 text-blue-800';
+        default:
+          return 'bg-gray-100 text-gray-800';
+      }
+    };
+
+    const formatReturnStatus = (status) => {
+      return status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A';
+    };
+
+    const canCancelItem = order?.orderStatus &&
+      ['Pending', 'Processing'].includes(order.orderStatus) &&
+      item.itemStatus !== 'Cancelled';
+
+    const canReturnItem = order?.orderStatus === "Delivered" && 
+      item.itemStatus === "Delivered" && 
+      !item.returnStatus &&
+      item.itemStatus !== 'Return_Pending';
+
+    const isReturnRequested = item.itemStatus === 'Return_Pending';
+
+    return (
+      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${
+        item.itemStatus === 'Cancelled' ? 'bg-red-50' : 
+        isReturnRequested ? 'bg-yellow-50' :
+        item.returnStatus ? 'bg-blue-50' : 'bg-gray-50 hover:shadow-md'
+      }`}>
+        <div className="flex-1">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-medium text-gray-800">
+                {item.productName || 'Unnamed Product'}
+              </h3>
+              <p className="text-sm text-gray-600">
+                Size: {item.size || 'N/A'} | Quantity: {item.quantity || 0}
+              </p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">
+                ₹{formatPrice(item.originalPrice)}
+              </p>
+              {item.refundAmount > 0 && (
+                <p className="text-sm text-green-600 mt-1">
+                  Refund Amount: ₹{formatPrice(item.refundAmount)}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col items-end">
+              {item.itemStatus === 'Cancelled' ? (
+                <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                  Cancelled
+                </span>
+              ) : isReturnRequested ? (
+                <span className={`px-2 py-1 ${getReturnStatusColor('return_pending')} text-xs font-medium rounded-full`}>
+                  Return Requested
+                </span>
+              ) : item.returnStatus ? (
+                <span className={`px-2 py-1 ${getReturnStatusColor(item.returnStatus)} text-xs font-medium rounded-full`}>
+                  Return {formatReturnStatus(item.returnStatus)}
+                </span>
+              ) : canReturnItem ? (
+                <button
+                  onClick={() => handleReturnItem(item.product)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200 flex items-center"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  Return Item
+                </button>
+              ) : canCancelItem && (
+                <button
+                  onClick={() => handleCancelItem(item.product)}
+                  className="text-sm text-red-600 hover:text-red-800 font-medium transition-colors duration-200 flex items-center"
+                >
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Cancel Item
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Return Status Information */}
+          {isReturnRequested && (
+            <div className="mt-3 p-2 bg-yellow-100 rounded-md">
+              <div className="flex items-center text-yellow-700">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                <span className="font-semibold">Return Requested</span>
+              </div>
+              {item.returnReason && (
+                <p className="text-sm text-yellow-600 mt-1">
+                  Reason: {item.returnReason}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Refund Information */}
+          {item.refundStatus && item.refundStatus !== 'none' && (
+            <div className="mt-3 p-2 bg-green-100 rounded-md">
+              <div className="flex items-center text-green-700">
+                <CreditCard className="w-4 h-4 mr-2" />
+                <span className="font-semibold">Refund Status: {formatReturnStatus(item.refundStatus)}</span>
+              </div>
+              {item.refundDate && (
+                <p className="text-sm text-green-600 mt-1">
+                  Refunded on: {new Date(item.refundDate).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Cancellation Information */}
+          {item.cancelReason && (
+            <div className="mt-3 p-2 bg-red-100 rounded-md">
+              <div className="flex items-center text-red-700">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                <span className="font-semibold">Cancellation Reason:</span>
+              </div>
+              <p className="text-sm text-red-600 mt-1">{item.cancelReason}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    fetchOrderDetails();
+  }, [orderId]);
   const confirmCancelOrder = async () => {
     setIsModalOpen(false);
     setCancelLoading(true);
@@ -94,7 +306,20 @@ const OrderDetails = () => {
         'Customer requested cancellation'
       );
       if (response && response.order) {
-        setOrder(response.order);
+        setOrder(prevOrder => ({
+          ...prevOrder,
+          ...response.order,
+          items: Array.isArray(response.order.items)
+            ? response.order.items.map(item => ({
+              ...item,
+              currentPrice: item.currentPrice || 0,
+              originalPrice: item.originalPrice || 0,
+              quantity: item.quantity || 0,
+              size: item.size || 'N/A',
+              itemStatus: item.itemStatus || 'Pending'
+            }))
+            : prevOrder.items
+        }));
       }
     } catch (err) {
       setError('Failed to cancel order: ' + err.message);
@@ -186,82 +411,16 @@ const OrderDetails = () => {
       </div>
     );
   };
-  const OrderItem = ({ item }) => {
-    if (!item) return null;
-  
-    const formatPrice = (amount) => {
-      return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
-    };
-  
-    return (
-      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${
-        item.itemStatus === 'Cancelled' ? 'bg-red-50' : 'bg-gray-50 hover:shadow-md'
-      }`}>
-        <div className="flex-1">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-lg font-medium text-gray-800">
-                {item.productName || 'Unnamed Product'}
-              </h3>
-              <p className="text-sm text-gray-600">
-                Size: {item.size || 'N/A'} | Quantity: {item.quantity || 0}
-              </p>
-              <p className="text-sm font-semibold text-gray-900 mt-1">
-                ₹{formatPrice(item.currentPrice)}
-                {item.currentPrice !== item.originalPrice && (
-                  <span className="line-through text-gray-500 ml-2 text-xs">
-                    ₹{formatPrice(item.originalPrice)}
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="flex flex-col items-end">
-              {item.itemStatus === 'Cancelled' ? (
-                <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
-                  Cancelled
-                </span>
-              ) : (
-                order?.orderStatus && ['Pending', 'Processing'].includes(order.orderStatus) && (
-                  <button
-                    onClick={() => handleCancelItem(item._id)}
-                    disabled={cancelLoading}
-                    className="text-sm text-red-600 hover:text-red-800 font-medium transition-colors duration-200"
-                  >
-                    Cancel Item
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-          {item.cancelReason && (
-            <div className="mt-3 p-2 bg-red-100 rounded-md">
-              <div className="flex items-center text-red-700">
-                <AlertCircle className="w-4 h-4 mr-2" />
-                <span className="font-semibold">Cancellation Reason:</span>
-              </div>
-              <p className="text-sm text-red-600 mt-1">{item.cancelReason}</p>
-            </div>
-          )}
-          {item.refundStatus && (
-            <div className="mt-2 text-sm text-blue-600">
-              <span className="font-medium">Refund Status:</span> {item.refundStatus}
-              {typeof item.refundAmount === 'number' && 
-                ` (₹${formatPrice(item.refundAmount)})`
-              }
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+
+
 
   const OrderSummary = () => {
     if (!order) return null;
-  
+
     const formatPrice = (amount) => {
       return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
     };
-  
+
     return (
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
         <div className="flex justify-between text-sm">
@@ -294,17 +453,17 @@ const OrderDetails = () => {
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Payment Status</span>
-          <span className={`font-medium ${
-            order.paymentStatus === 'completed' ? 'text-green-600' :
+          <span className={`font-medium ${order.paymentStatus === 'completed' ? 'text-green-600' :
             order.paymentStatus === 'failed' ? 'text-red-600' :
-            'text-yellow-600'
-          }`}>
+              'text-yellow-600'
+            }`}>
             {(order.paymentStatus || 'PENDING').toUpperCase()}
           </span>
         </div>
       </div>
     );
   };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -325,7 +484,7 @@ const OrderDetails = () => {
     );
   }
 
-  if (!order) {
+  if (!order || !order.items) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-2xl font-semibold text-gray-700 bg-white px-6 py-4 rounded-lg shadow-md">
@@ -335,9 +494,8 @@ const OrderDetails = () => {
     );
   }
 
-  // Update the activeItems and cancelledItems filters
-  const activeItems = order.items.filter(item => item.itemStatus !== 'Cancelled');
-  const cancelledItems = order.items.filter(item => item.itemStatus === 'Cancelled');
+  const activeItems = order.items.filter(item => item.itemStatus !== 'Cancelled') || [];
+  const cancelledItems = order.items.filter(item => item.itemStatus === 'Cancelled') || [];
 
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
@@ -368,7 +526,11 @@ const OrderDetails = () => {
                 </h2>
                 <div className="space-y-4">
                   {activeItems.map((item, index) => (
-                    <OrderItem key={index} item={item} />
+                    <OrderItem
+                      key={index}
+                      item={item}
+                      handleCancelItem={handleItemCancel}
+                    />
                   ))}
                 </div>
               </div>
@@ -432,7 +594,11 @@ const OrderDetails = () => {
                 </h2>
                 <div className="space-y-4">
                   {cancelledItems.map((item, index) => (
-                    <OrderItem key={index} item={item} />
+                    <OrderItem
+                      key={index}
+                      item={item}
+                      handleCancelItem={handleItemCancel}
+                    />
                   ))}
                 </div>
               </div>
@@ -448,7 +614,7 @@ const OrderDetails = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Orders
             </Link>
-            {['pending', 'processing'].includes(order.orderStatus.toLowerCase()) && (
+            {['pending', 'processing'].includes(order.orderStatus.toLowerCase()) && activeItems.length > 0 && (
               <button
                 onClick={handleCancelOrder}
                 disabled={cancelLoading}
@@ -504,15 +670,45 @@ const OrderDetails = () => {
       )}
 
       {/* Confirmation Modal */}
-      <ConfirmationModal
+      <ConfirmationModal 
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onConfirm={cancellingItemId ? confirmCancelItem : confirmCancelOrder}
-        title={cancellingItemId ? "Cancel Item" : "Cancel Order"}
-        message={cancellingItemId
-          ? "Are you sure you want to cancel this item? This action cannot be undone."
-          : "Are you sure you want to cancel this order? This action cannot be undone."}
+        onClose={() => {
+          setIsModalOpen(false);
+          setCancellingItemId(null);
+          setReturningItemId(null);
+          setReturnReason('');
+        }}
+        onConfirm={returningItemId ? confirmReturnItem : (cancellingItemId ? confirmCancelItem : confirmCancelOrder)}
+        title={returningItemId ? "Request Return" : (cancellingItemId ? "Cancel Item" : "Cancel Order")}
+        message={
+          returningItemId ? (
+            <div className="space-y-4">
+              <p>Please provide a reason for returning this item:</p>
+              <textarea
+                value={returnReason}
+                onChange={handleReturnReasonChange}
+                className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows="4"
+                placeholder="Enter return reason..."
+              />
+            </div>
+          ) : (
+            cancellingItemId
+              ? "Are you sure you want to cancel this item? This action cannot be undone."
+              : "Are you sure you want to cancel this entire order? This action cannot be undone."
+          )
+        }
+        confirmButtonText={
+          returningItemId 
+            ? (returnLoading ? "Processing..." : "Submit Return Request")
+            : (cancelLoading ? "Processing..." : "Confirm")
+        }
+        confirmButtonDisabled={
+          (returningItemId && (!returnReason.trim() || returnLoading)) ||
+          (!returningItemId && cancelLoading)
+        }
       />
+      
     </div>
   );
 };

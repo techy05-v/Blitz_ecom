@@ -25,7 +25,7 @@ const {
     toggleCategoryStatus
 } = require("../controller/categoryController.js");
 
-const {updateOrderStatus,getAllOrderByAdmin,}=require("../controller/orderController.js")
+const {updateOrderStatus,getAllOrderByAdmin,getAdminOrderDetails}=require("../controller/orderController.js")
 const { 
     createOffer,
     editOffer,
@@ -38,6 +38,8 @@ const {
 } = require('../controller/offerController');
 
 const {createCoupon,listCoupons,deleteCoupon,applyCoupon,validateCoupon} =require("../controller/couponController.js")
+const {approveReturn,processRefund,getReturnStatus}= require("../controller/returnController.js")
+
 
 
 
@@ -72,7 +74,8 @@ router.delete('/deleteproduct/:id',verifyAdmin,  deleteProduct);
 // order routes;
 
 router.get('/orders', verifyAdmin, getAllOrderByAdmin);
-router.put('/orders/:orderId/status',verifyAdmin, updateOrderStatus);
+router.put('/orders/:orderId/status', verifyAdmin, updateOrderStatus);
+router.get('/orders/:orderId/status', verifyAdmin, getAdminOrderDetails);
 
 
 // offer routes
@@ -94,5 +97,11 @@ router.patch('/offers/:id/toggle-status', verifyAdmin, toggleOfferStatus);
 router.post("/create",verifyAdmin,createCoupon)
 router.delete("/delete/:id",verifyAdmin,deleteCoupon)
 router.get("/list",verifyAdmin,listCoupons)
+
+// return routes for admin
+
+router.post("/return/approve",verifyAdmin,approveReturn)
+router.post("/return/refund",verifyAdmin,processRefund)
+router.get("/return/status/:orderId/:itemId",verifyAdmin,getReturnStatus)
 
 module.exports = router;

@@ -14,6 +14,9 @@ const {
     getCategoryOffers,
 } = require('../controller/offerController');
 const {applyCoupon,listCoupons} =require("../controller/couponController")
+const {requestReturn} = require("../controller/returnController")
+
+const {getWalletDetails,useWalletBalance} = require("../controller/walletController")
 userRoute.post("/google",googleAuth)
 userRoute.get("/product/:id", verifyUser,getProductById)
 userRoute.get("/products",verifyUser,getAllProductsByUser)
@@ -73,5 +76,12 @@ userRoute.get('/offers/category/:categoryId', verifyUser, getCategoryOffers);
 userRoute.post("/coupons/apply",verifyUser,applyCoupon)
 userRoute.get("/coupons/list",verifyUser,listCoupons)
 
+// return
+
+userRoute.post("/return/request",verifyUser,requestReturn)
 
 
+// wallet 
+
+userRoute.get('/wallet/details', verifyUser, getWalletDetails);
+userRoute.post('/wallet/use', verifyUser, useWalletBalance);

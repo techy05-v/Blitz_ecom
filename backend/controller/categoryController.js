@@ -251,7 +251,6 @@ const toggleCategoryStatus = async (req, res) => {
     // Toggle the isactive status
     category.isactive = !category.isactive;
     await category.save();
-    console.log(category);
     
     res.status(200).json({
       message: `Category ${category.isactive ? 'unblocked' : 'blocked'} successfully`,

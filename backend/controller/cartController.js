@@ -137,7 +137,6 @@ const addToCart = async (req, res) => {
         });
 
     } catch (error) {
-        console.log("Add to cart:", error);
         return res.status(500).json({
             success: false,
             message: "Error in adding to cart",
@@ -220,7 +219,6 @@ const getCartItems = async (req, res) => {
         });
     }
     catch (error) {
-        console.log("Get cart items:", error);
         return res.status(500).json({
             success: false,
             message: "Error in getting cart items",
@@ -338,7 +336,6 @@ const removeCartItems = async (req, res) => {
 
     }
     catch (error) {
-        console.log("Remove cart items:", error)
         return res.status(400).json({
             success: false,
             messsage: "Cart not found"
@@ -365,7 +362,6 @@ const clearCart = async (req, res) => {
         })
     }
     catch (error) {
-        console.log("Clear cart:", error)
         return res.status(500).json({
             success: false,
             message: "internal server error",

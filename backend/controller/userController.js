@@ -77,7 +77,6 @@ const getAllProductsByUser = async (req, res) => {
 const googleAuth = async (req, res) => {
     const { token, role } = req.body;
 
-    console.log("Received Google Auth request with token and role:", { token, role });
 
     if (!token || !role) {
         console.error("Missing token or role in the request");
@@ -90,20 +89,17 @@ const googleAuth = async (req, res) => {
     }
 
     try {
-        console.log("Initializing Google OAuth2Client...");
         const client = new OAuth2Client({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         });
 
-        console.log("Verifying ID token...");
         const ticket = await client.verifyIdToken({
             idToken: token,
             audience: process.env.GOOGLE_CLIENT_ID,
         });
 
         const payload = ticket.getPayload();
-        console.log("Token payload:", payload);
 
         if (!payload.email_verified) {
             console.warn("Unverified email:", payload.email);
@@ -111,9 +107,7 @@ const googleAuth = async (req, res) => {
         }
 
         const { name, email, sub, picture } = payload;
-        console.log("Verified email:", email);
 
-        console.log("Checking if the email exists in other roles...");
         // rs
 
         // if (isOtherRoleExists) {
@@ -123,7 +117,6 @@ const googleAuth = async (req, res) => {
         //     });
         // }
 
-        console.log("Looking up the user in the database...");
         let user = await User.findOne({ email });
 
         if (user && user.isBlocked) {
@@ -134,7 +127,6 @@ const googleAuth = async (req, res) => {
         }
 
         if (!user) {
-            console.log("Creating a new user for:", email);
             user = new User({
                 full_name: name,
                 email,
@@ -142,14 +134,12 @@ const googleAuth = async (req, res) => {
                 avatar: picture,
             });
         } else if (!user.google_id) {
-            console.log("Updating existing user with Google ID:", email);
             user.google_id = sub;
             if (!user.avatar) {
                 user.avatar = picture;
             }
         }
 
-        console.log("Saving user data...");
         await user.save();
 
         const userDataToGenerateToken = {
@@ -158,11 +148,9 @@ const googleAuth = async (req, res) => {
             role,
         };
 
-        console.log("Generating access and refresh tokens...");
         const accessToken = generateAccessToken(role, userDataToGenerateToken);
         const refreshToken = generateRefreshToken(role, userDataToGenerateToken);
 
-        console.log("Saving refresh token to the database...");
         const newRefreshToken = new RefreshToken({
             token: refreshToken,
             user: role,
@@ -171,12 +159,10 @@ const googleAuth = async (req, res) => {
         });
 
         const savedToken = await newRefreshToken.save();
-        console.log("Refresh token saved:", savedToken);
 
         const { password, ...userDetails } = user.toObject();
 
         if (savedToken) {
-            console.log("Storing refresh token in cookies...");
             storeToken(
                 `${role}RefreshToken`,
                 refreshToken,
@@ -184,7 +170,6 @@ const googleAuth = async (req, res) => {
                 res
             );
 
-            console.log("Returning success response for:", email);
             return res.status(200).json({
                 success: true,
                 message: `${role.charAt(0).toUpperCase() + role.slice(1)} logged in successfully`,
@@ -194,10 +179,8 @@ const googleAuth = async (req, res) => {
             });
         }
 
-        console.error("Failed to save the refresh token for:", email);
         res.status(500).json({ message: "Failed to log in" });
     } catch (error) {
-        console.error("Google Auth Error:", error.stack || error);
         res.status(500).json({
             message: "Internal server error. Please try again.",
         });
@@ -206,15 +189,12 @@ const googleAuth = async (req, res) => {
 
 const getProductById = async (req, res) => {
 	try {
-	  console.log(`Received product ID request: ${req.params.id}`);
 	  
 	  const id = req.params.id;
 	  
-	  console.log(`Attempting to find product with ID: ${id}`);
 	  const product = await Product.findById(id)
 		.populate('category', 'CategoryName');
 	  
-	  console.log('Product found:', product);
 	  
 	  if (!product) {
 		console.warn(`Product not found for ID: ${id}`);
@@ -240,13 +220,10 @@ const getProductById = async (req, res) => {
   };
   const getAllCategories = async (req, res) => {
 	try {
-	  console.log('Incoming Request: ', req.method, req.url);
 	  
-	  console.log('Attempting to find all categories');
 	  
 	  const categories = await Category.find({});
 	  
-	  console.log('Categories fetched:', categories);
 	  
 	  if (categories.length === 0) {
 		console.warn('No categories found');

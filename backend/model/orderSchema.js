@@ -8,51 +8,60 @@ const orderSchema = new mongoose.Schema({
   },
   items: [{
     product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'ProductSchema',
-      required: true
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ProductSchema',
+        required: true
     },
     quantity: {
-      type: Number,
-      required: true,
-      min: 1
+        type: Number,
+        required: true,
+        min: 1
     },
     size: {
-      type: String,
-      required: true
+        type: String,
+        required: true
     },
     price: {
-      type: Number,
-      required: true
+        type: Number,
+        required: true
     },
     discountedPrice: {
-      type: Number,
-      required: true
+        type: Number,
+        required: true
     },
     itemStatus: {
-      type: String,
-      enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
-      default: 'Pending'
+        type: String,
+        enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Return_Pending', 'Returned'],
+        default: 'Pending'
     },
     cancelReason: {
-      type: String
+        type: String
     },
     cancelledAt: {
-      type: Date
+        type: Date
     },
-    refundStatus:{
-      type:String,
-      enum:["none","pending","processed"],
-      default:"none"
+    returnReason: {
+        type: String
     },
-    refundAmount:{
-      type:Number,
-      default:0
+    returnRequestedAt: {
+        type: Date
     },
-    refundDate:{
-      type:Date
+    returnApprovedAt: {
+        type: Date
+    },
+    refundStatus: {
+      type: String,
+      enum: ['none', 'pending', 'processed', 'completed', 'failed'],
+      default: 'none'
+    },
+    refundAmount: {
+        type: Number,
+        default: 0
+    },
+    refundDate: {
+        type: Date
     }
-  }],
+}],
   shippingAddress: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'AddressSchema',
@@ -121,8 +130,13 @@ const orderSchema = new mongoose.Schema({
     reason: String,
     status: {
       type: String,
-      enum: ['pending', 'processed', 'failed'],
-      default: 'pending'
+      enum: ['none', 'pending', 'processed', 'completed', 'failed'],
+      required: true
+    },
+    itemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true
     }
   }],
   orderNotes: String,
