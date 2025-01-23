@@ -41,6 +41,14 @@ const {createCoupon,listCoupons,deleteCoupon,applyCoupon,validateCoupon} =requir
 const {approveReturn,processRefund,getReturnStatus}= require("../controller/returnController.js")
 
 
+// sales report 
+
+const {
+    generateSalesReport,
+    exportToExcel,
+    exportToPDF
+  } = require('../controller/salesReport.js');
+  
 
 
 
@@ -103,5 +111,17 @@ router.get("/list",verifyAdmin,listCoupons)
 router.post("/return/approve",verifyAdmin,approveReturn)
 router.post("/return/refund",verifyAdmin,processRefund)
 router.get("/return/status/:orderId/:itemId",verifyAdmin,getReturnStatus)
+
+
+
+// sales report 
+
+router.get('/report',verifyAdmin, generateSalesReport);
+
+// Download Excel report
+router.get('/export/excel',  verifyAdmin,exportToExcel);
+
+// Download PDF report
+router.get('/export/pdf', verifyAdmin, exportToPDF);
 
 module.exports = router;

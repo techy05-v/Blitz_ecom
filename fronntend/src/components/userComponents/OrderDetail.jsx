@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Truck, Package, Clock, XCircle, ArrowLeft, CreditCard, MapPin, Home, Briefcase, Map, AlertCircle,RefreshCw } from 'lucide-react';
+import { CheckCircle, Truck, Package, Clock, XCircle, ArrowLeft, CreditCard, MapPin, Home, Briefcase, Map, AlertCircle, RefreshCw } from 'lucide-react';
 import orderService from '../../api/orderService/orderService';
 import ConfirmationModal from '../../confirmationModal/ConfirmationMadal';
 import { handleRequestReturn } from '../../api/returnService/returnService';
+import InvoiceDownload from '../../private/user/InvoiceDownload';
 const OrderDetails = () => {
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
@@ -185,19 +186,18 @@ const OrderDetails = () => {
       ['Pending', 'Processing'].includes(order.orderStatus) &&
       item.itemStatus !== 'Cancelled';
 
-    const canReturnItem = order?.orderStatus === "Delivered" && 
-      item.itemStatus === "Delivered" && 
+    const canReturnItem = order?.orderStatus === "Delivered" &&
+      item.itemStatus === "Delivered" &&
       !item.returnStatus &&
       item.itemStatus !== 'Return_Pending';
 
     const isReturnRequested = item.itemStatus === 'Return_Pending';
 
     return (
-      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${
-        item.itemStatus === 'Cancelled' ? 'bg-red-50' : 
-        isReturnRequested ? 'bg-yellow-50' :
-        item.returnStatus ? 'bg-blue-50' : 'bg-gray-50 hover:shadow-md'
-      }`}>
+      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${item.itemStatus === 'Cancelled' ? 'bg-red-50' :
+          isReturnRequested ? 'bg-yellow-50' :
+            item.returnStatus ? 'bg-blue-50' : 'bg-gray-50 hover:shadow-md'
+        }`}>
         <div className="flex-1">
           <div className="flex justify-between items-start">
             <div>
@@ -208,7 +208,7 @@ const OrderDetails = () => {
                 Size: {item.size || 'N/A'} | Quantity: {item.quantity || 0}
               </p>
               <p className="text-sm font-semibold text-gray-900 mt-1">
-                ₹{formatPrice(item.originalPrice)}
+                ₹{formatPrice(item.price || item.discountedPrice)}
               </p>
               {item.refundAmount > 0 && (
                 <p className="text-sm text-green-600 mt-1">
@@ -516,7 +516,6 @@ const OrderDetails = () => {
 
           {/* Order Status Bar */}
           <OrderStatusBar currentStatus={order.orderStatus} />
-
           <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Active Items */}
             {activeItems.length > 0 && (
@@ -545,6 +544,7 @@ const OrderDetails = () => {
               {order.shippingAddress && (
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-center mb-2">
+                    {console.log(order.shippingAddress)}
                     {getAddressTypeIcon(order.shippingAddress.address_type)}
                     <span className="text-sm font-medium text-blue-600 capitalize">
                       {order.shippingAddress.address_type} Address
@@ -606,6 +606,7 @@ const OrderDetails = () => {
           </div>
 
           {/* Actions */}
+          <InvoiceDownload orderId={orderId} />
           <div className="px-6 py-4 bg-gray-50 flex justify-between items-center mt-6">
             <Link
               to="/user/orders"
@@ -643,7 +644,6 @@ const OrderDetails = () => {
           </div>
         </div>
       </div>
-
       {/* Error Toast */}
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg">
@@ -667,10 +667,11 @@ const OrderDetails = () => {
             </button>
           </div>
         </div>
+
       )}
 
       {/* Confirmation Modal */}
-      <ConfirmationModal 
+      <ConfirmationModal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
@@ -699,7 +700,7 @@ const OrderDetails = () => {
           )
         }
         confirmButtonText={
-          returningItemId 
+          returningItemId
             ? (returnLoading ? "Processing..." : "Submit Return Request")
             : (cancelLoading ? "Processing..." : "Confirm")
         }
@@ -708,8 +709,9 @@ const OrderDetails = () => {
           (!returningItemId && cancelLoading)
         }
       />
-      
+
     </div>
+
   );
 };
 

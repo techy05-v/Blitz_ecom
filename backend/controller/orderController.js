@@ -328,6 +328,7 @@ const getOrderDetails = async (req, res) => {
             paymentStatus: order.paymentStatus,
             paymentMethod: order.paymentMethod,
             createdAt: order.createdAt,
+            shippingAddress: order.shippingAddress, 
             items: order.items.map(item => ({
                 product: item.product._id,
                 productName: item.product.productName,
@@ -335,6 +336,8 @@ const getOrderDetails = async (req, res) => {
                 currentPrice: item.currentPrice,
                 quantity: item.quantity,
                 size: item.size,
+                price: item.price,
+                discountedPrice: item.discountedPrice,
                 itemStatus: item.itemStatus,
                 cancelReason: item.cancelReason || null,
                 cancelledAt: item.cancelledAt || null,
@@ -388,12 +391,15 @@ const getAdminOrderDetails = async (req, res) => {
                 currentPrice: item.currentPrice,
                 quantity: item.quantity,
                 size: item.size,
+                price: item.price,
                 itemStatus: item.itemStatus,
                 cancelReason: item.cancelReason || null,
                 cancelledAt: item.cancelledAt || null,
                 refundStatus: item.refundStatus,
                 refundAmount: item.refundAmount || 0,
-                refundDate: item.refundDate || null
+                refundDate: item.refundDate || null,
+                returnRequestedAt:item.returnRequestedAt||null,
+                returnApprovedAt:item.returnApprovedAt|| null
             })),
             totalRefundAmount: order.totalRefundAmount || 0,
             refundHistory: order.refundHistory || [],
@@ -412,24 +418,98 @@ const cancelOrder = async (req, res) => {
         const { orderId } = req.params;
         const { cancelReason } = req.body;
         const userId = req.user.data.id;
-
+ 
         const order = await Order.findOne({ _id: orderId, user: userId });
-
+ 
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
-
+ 
+        // Validate cancellation is possible
         if (!['Pending', 'Processing'].includes(order.orderStatus)) {
             return res.status(400).json({
                 message: 'Order cannot be cancelled in current status'
             });
         }
-
-        // Update stock quantities for each item
-        await Promise.all(order.items.map(async (item) => {
+ 
+        // Calculate total amount of already refunded items
+        const refundedItems = order.items.filter(item => 
+            item.itemStatus === 'Cancelled' && 
+            (item.refundStatus === 'completed' || item.refundStatus === 'processed')
+        );
+ 
+        const refundedItemsTotal = refundedItems.reduce((total, item) => 
+            total + (item.discountedPrice || item.price) * item.quantity, 
+        0);
+ 
+        // Calculate remaining refundable amount
+        const refundAmount = order.originalAmount - refundedItemsTotal;
+ 
+        if (refundAmount <= 0) {
+            return res.status(400).json({ 
+                message: 'Order has already been fully refunded' 
+            });
+        }
+ 
+        // Mark entire order as cancelled
+        order.orderStatus = 'Cancelled';
+        order.cancelReason = cancelReason;
+        order.currentAmount = 0;
+ 
+        // Mark remaining items as cancelled
+        order.items.forEach(item => {
+            if (item.itemStatus !== 'Cancelled') {
+                item.itemStatus = 'Cancelled';
+                item.cancelledAt = new Date();
+                item.cancelReason = cancelReason;
+                item.currentPrice = 0;
+                item.refundStatus = 'processed';
+                item.refundAmount = (item.discountedPrice || item.price) * item.quantity;
+            }
+        });
+ 
+        // Refund processing
+        if (order.paymentStatus === 'completed') {
+            if (['wallet', 'razorpay'].includes(order.paymentMethod)) {
+                const wallet = await Wallet.findOne({ user: userId });
+                
+                if (wallet) {
+                    wallet.transactions.push({
+                        amount: refundAmount,
+                        type: 'credit',
+                        orderId: order.orderId,
+                        description: 'Remaining order refund',
+                        status: 'completed'
+                    });
+                    
+                    wallet.balance += refundAmount;
+                    await wallet.save();
+ 
+                    // Update total refund amount
+                    order.totalRefundAmount += refundAmount;
+                    order.paymentStatus = 'refunded';
+                }
+            } else {
+                // For other payment methods
+                order.refundHistory.push({
+                    amount: refundAmount,
+                    date: new Date(),
+                    reason: cancelReason,
+                    status: 'pending',
+                    itemId: null // Full order refund
+                });
+            }
+        }
+ 
+        // Stock restoration for remaining items
+        const remainingItemsToRestore = order.items.filter(item => 
+            item.itemStatus !== 'Cancelled'
+        );
+ 
+        await Promise.all(remainingItemsToRestore.map(async (item) => {
             const product = await ProductSchema.findById(item.product);
             const sizeIndex = product.availableSizes.findIndex(s => s.size === item.size);
-
+ 
             if (sizeIndex !== -1) {
                 product.availableSizes[sizeIndex].quantity += item.quantity;
                 const totalStock = product.availableSizes.reduce((sum, size) => sum + size.quantity, 0);
@@ -437,79 +517,19 @@ const cancelOrder = async (req, res) => {
                 await product.save();
             }
         }));
-
-        // Mark order and all items as cancelled
-        order.orderStatus = 'Cancelled';
-        order.cancelReason = cancelReason;
-        order.currentAmount = 0;
-
-        // Cancel all items
-        order.items.forEach(item => {
-            if (item.itemStatus !== 'Cancelled') {
-                item.itemStatus = 'Cancelled';
-                item.cancelledAt = new Date();
-                item.cancelReason = cancelReason;
-                item.currentPrice = 0;
-            }
-        });
-
-        // Handle refund for completed payments
-        if (order.paymentStatus === 'completed') {
-            // Specifically handle wallet and Razorpay payments
-            if (['wallet', 'razorpay'].includes(order.paymentMethod)) {
-                const wallet = await Wallet.findOne({ user: userId });
-                
-                if (wallet) {
-                    // Credit full order amount to wallet
-                    wallet.transactions.push({
-                        amount: order.originalAmount,
-                        type: 'credit',
-                        orderId: order.orderId,
-                        description: `Full order refund for ${order.orderId}`,
-                        status: 'completed'
-                    });
-                    
-                    wallet.balance += order.originalAmount;
-                    await wallet.save();
-
-                    // Update order refund status
-                    order.paymentStatus = 'refunded';
-                    order.totalRefundAmount = order.originalAmount;
-                    order.refundHistory.push({
-                        amount: order.originalAmount,
-                        date: new Date(),
-                        reason: cancelReason,
-                        status: 'completed',
-                        itemId: order.items[0].product
-                    });
-                }
-            } else {
-                // For other payment methods, create refund history
-                order.refundHistory.push({
-                    amount: order.originalAmount,
-                    date: new Date(),
-                    reason: cancelReason,
-                    status: 'pending',
-                    itemId: order.items[0].product
-                });
-                order.totalRefundAmount = order.originalAmount;
-                order.paymentStatus = 'refunded';
-            }
-        }
-
+ 
         await order.save();
-
+ 
         res.status(200).json({
             message: 'Order cancelled successfully',
             order: {
                 orderId: order.orderId,
                 originalAmount: order.originalAmount,
+                refundedItemsTotal,
                 currentAmount: order.currentAmount,
-                orderStatus: order.orderStatus,
-                cancelReason: order.cancelReason,
-                paymentStatus: order.paymentStatus,
                 totalRefundAmount: order.totalRefundAmount,
-                refundHistory: order.refundHistory
+                orderStatus: order.orderStatus,
+                paymentStatus: order.paymentStatus
             }
         });
     } catch (error) {
@@ -519,7 +539,7 @@ const cancelOrder = async (req, res) => {
             error: error.message 
         });
     }
-};
+ };
 const cancelOrderItem = async (req, res) => {
     try {
         const { orderId, itemId } = req.params;

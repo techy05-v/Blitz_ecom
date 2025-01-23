@@ -15,7 +15,7 @@ const {
 } = require('../controller/offerController');
 const {applyCoupon,listCoupons} =require("../controller/couponController")
 const {requestReturn} = require("../controller/returnController")
-
+const {downloadInvoice} = require("../config/invoice")
 const {getWalletDetails,useWalletBalance} = require("../controller/walletController")
 userRoute.post("/google",googleAuth)
 userRoute.get("/product/:id", verifyUser,getProductById)
@@ -85,3 +85,5 @@ userRoute.post("/return/request",verifyUser,requestReturn)
 
 userRoute.get('/wallet/details', verifyUser, getWalletDetails);
 userRoute.post('/wallet/use', useWalletBalance);
+
+userRoute.get("/orders/:orderId/invoice",verifyUser,downloadInvoice)
