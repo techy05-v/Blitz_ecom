@@ -42,6 +42,7 @@ function OrderDetails() {
       if (response.data.success) {
         await fetchOrderDetails()
         setError(null)
+        toast.success('Order status updated successfully')
       } else {
         setError(response.data.message || "Update failed")
       }
@@ -63,9 +64,8 @@ function OrderDetails() {
         approved,
       })
   
-      // Check both success and data properties
       if (response && response.success) {
-        await fetchOrderDetails() // Refresh order details
+        await fetchOrderDetails()
         toast.success(approved ? 'Return approved' : 'Return rejected')
       } else {
         throw new Error(response?.error || response?.message || 'Return action failed')
@@ -86,49 +86,59 @@ function OrderDetails() {
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case "pending":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-amber-100 text-amber-800 border-amber-200"
       case "processing":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800 border-blue-200"
       case "shipped":
-        return "bg-purple-100 text-purple-800"
+        return "bg-indigo-100 text-indigo-800 border-indigo-200"
       case "delivered":
-        return "bg-green-100 text-green-800"
+        return "bg-emerald-100 text-emerald-800 border-emerald-200"
       case "return_pending":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 text-orange-800 border-orange-200"
       case "returned":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 text-red-800 border-red-200"
       case "cancelled":
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800 border-gray-200"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        <span className="ml-2">Loading...</span>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="p-8 rounded-lg bg-white shadow-lg">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600 text-center">Loading order details...</p>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="text-center py-10">
-        <div className="text-red-500 mb-4">{error}</div>
-        <button
-          onClick={() => fetchOrderDetails()}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-        >
-          Retry
-        </button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="p-8 rounded-lg bg-white shadow-lg text-center max-w-md w-full">
+          <div className="text-red-500 text-lg mb-4">{error}</div>
+          <button
+            onClick={() => fetchOrderDetails()}
+            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-md hover:shadow-lg"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }
 
   if (!order) {
-    return <div className="text-center py-10">Order not found</div>
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="p-8 rounded-lg bg-white shadow-lg">
+          <p className="text-xl text-gray-600">Order not found</p>
+        </div>
+      </div>
+    )
   }
 
   const returnRequestedItems = order.items.filter(item => 
@@ -137,121 +147,135 @@ function OrderDetails() {
   )
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Order Header */}
-      <div className="mb-6 p-6 bg-white rounded-lg shadow-sm">
-        <h2 className="text-2xl font-bold">Order #{order.orderId}</h2>
-        <div className="mt-2">
-          <span className="font-medium">Order Status: </span>
-          <select
-            className="bg-white border border-gray-300 rounded px-3 py-2 ml-2"
-            value={order.orderStatus || ""}
-            onChange={(e) => handleStatusUpdate(e.target.value)}
-            disabled={loading}
-          >
-            {statusOptions.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Products Table */}
-      <div className="mb-8">
-        <h3 className="text-xl font-semibold mb-4">Order Items</h3>
-        <table className="min-w-full bg-white border rounded-lg overflow-hidden shadow-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.items.map((item) => (
-              <tr key={item.product} className="border-t">
-                <td className="px-6 py-4">{item.productName}</td>
-                <td className="px-6 py-4">{item.quantity}</td>
-                <td className="px-6 py-4">{item.size}</td>
-                <td className="px-6 py-4">₹{item.price}</td>
-                <td className="px-6 py-4">
-                  <span className={`inline-block px-2 py-1 rounded ${getStatusColor(item.itemStatus)}`}>
-                    {item.itemStatus}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Return Requests Section */}
-      {returnRequestedItems.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-xl font-semibold mb-4">Return Requests</h3>
-          <div className="space-y-4">
-            {returnRequestedItems.map((item) => (
-              <div key={item.product} className="border rounded-lg p-4 bg-white shadow-sm">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-medium">{item.productName}</h4>
-                    <p className="text-sm text-gray-600">
-                      Size: {item.size} | Quantity: {item.quantity}
-                    </p>
-                    {item.returnReason && (
-                      <p className="text-sm mt-2">
-                        <span className="font-medium">Return Reason: </span>
-                        {item.returnReason}
-                      </p>
-                    )}
-                    <p className="text-sm mt-2">
-                      <span className="font-medium">Requested At: </span>
-                      {new Date(item.returnRequestedAt).toLocaleString()}
-                    </p>
-                    {item.refundStatus !== 'none' && (
-                      <p className="text-sm mt-1">
-                        <span className="font-medium">Refund Status: </span>
-                        {item.refundStatus}
-                      </p>
-                    )}
-                  </div>
-
-                  {item.itemStatus === 'Return_Pending' && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleReturnAction(item.product, true)}
-                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-                        disabled={processingItems.has(item.product)}
-                      >
-                        {processingItems.has(item.product) ? (
-                          <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Processing...
-                          </span>
-                        ) : 'Approve'}
-                      </button>
-                      <button
-                        onClick={() => handleReturnAction(item.product, false)}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-                        disabled={processingItems.has(item.product)}
-                      >
-                        {processingItems.has(item.product) ? 'Processing...' : 'Reject'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Order Header */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-100">
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900">Order #{order.orderId}</h2>
+              <p className="text-gray-500 mt-1">Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-700 font-medium">Status:</span>
+              <select
+                className="bg-white border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 transition-colors"
+                value={order.orderStatus || ""}
+                onChange={(e) => handleStatusUpdate(e.target.value)}
+                disabled={loading}
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      )}
+
+        {/* Products Table */}
+        <div className="bg-white rounded-xl shadow-sm mb-8 overflow-hidden border border-gray-100">
+          <div className="p-6 border-b border-gray-100">
+            <h3 className="text-xl font-bold text-gray-900">Order Items</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {order.items.map((item) => (
+                  <tr key={item.product} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">{item.productName}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.quantity}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.size}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">₹{item.price}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(item.itemStatus)}`}>
+                        {item.itemStatus}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Return Requests Section */}
+        {returnRequestedItems.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Return Requests</h3>
+            <div className="space-y-6">
+              {returnRequestedItems.map((item) => (
+                <div key={item.product} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start flex-wrap gap-4">
+                    <div className="space-y-2">
+                      <h4 className="text-lg font-semibold text-gray-900">{item.productName}</h4>
+                      <div className="flex gap-4 text-sm text-gray-600">
+                        <span>Size: {item.size}</span>
+                        <span>Quantity: {item.quantity}</span>
+                      </div>
+                      {item.returnReason && (
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Return Reason: </span>
+                          {item.returnReason}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Requested At: </span>
+                        {new Date(item.returnRequestedAt).toLocaleString()}
+                      </p>
+                      {item.refundStatus !== 'none' && (
+                        <p className="text-sm">
+                          <span className="font-medium">Refund Status: </span>
+                          <span className={`${getStatusColor(item.refundStatus)} px-2 py-1 rounded-full`}>
+                            {item.refundStatus}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    {item.itemStatus === 'Return_Pending' && (
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleReturnAction(item.product, true)}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50"
+                          disabled={processingItems.has(item.product)}
+                        >
+                          {processingItems.has(item.product) ? (
+                            <span className="flex items-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Processing...
+                            </span>
+                          ) : 'Approve Return'}
+                        </button>
+                        <button
+                          onClick={() => handleReturnAction(item.product, false)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50"
+                          disabled={processingItems.has(item.product)}
+                        >
+                          {processingItems.has(item.product) ? 'Processing...' : 'Reject Return'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

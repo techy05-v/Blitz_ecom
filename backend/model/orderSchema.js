@@ -100,7 +100,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['card', 'cash_on_delivery', 'upi',"razorpay"],
+    enum: ['card', 'cash_on_delivery', 'upi',"razorpay","wallet"],
     required: true
   },
   orderStatus: {

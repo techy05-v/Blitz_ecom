@@ -150,68 +150,85 @@ const CheckoutPage = () => {
     e.preventDefault();
   
     if (!selectedAddress) {
-      toast.error("Please select a delivery address");
-      return;
+        toast.error("Please select a delivery address");
+        return;
     }
   
     if (!selectedPaymentMethod) {
-      toast.error("Please select a payment method");
-      return;
+        toast.error("Please select a payment method");
+        return;
     }
   
     if (cartItems.length === 0) {
-      toast.error("Your cart is empty");
-      return;
+        toast.error("Your cart is empty");
+        return;
     }
   
     setLoading(true);
     try {
-      const orderData = {
-        shippingAddressId: selectedAddress._id,
-        paymentMethod: selectedPaymentMethod.id,
-        orderNotes: "",
-        items: cartItems.map((item) => ({
-          product: item.product._id,
-          quantity: item.quantity,
-          size: item.size,
-          price: item.price,
-          discountedPrice: item.discountedPrice,
-        })),
-        totalAmount: orderSummary.total,
-        appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null
-      };
+        const orderData = {
+            shippingAddressId: selectedAddress._id,
+            paymentMethod: selectedPaymentMethod.id,
+            orderNotes: "",
+            items: cartItems.map((item) => ({
+                product: item.product._id,
+                quantity: item.quantity,
+                size: item.size,
+                price: item.price,
+                discountedPrice: item.discountedPrice,
+            })),
+            totalAmount: orderSummary.total,
+            appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null
+        };
   
-      if (selectedPaymentMethod.id === 'razorpay') {
-        const paymentInitiated = await handleRazorpayPayment(orderData);
-        if (!paymentInitiated) {
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Handle cash on delivery
-        const response = await orderService.createOrder(orderData);
-        
-        if (!response || !response.success) {
-          throw new Error(response?.message || 'Failed to create order');
-        }
+        if (selectedPaymentMethod.id === 'razorpay') {
+            const paymentInitiated = await handleRazorpayPayment(orderData);
+            if (!paymentInitiated) {
+                setLoading(false);
+                return;
+            }
+        } else if (selectedPaymentMethod.id === 'wallet') {
+            // Handle wallet payment
+            const response = await orderService.createOrder(orderData);
+            
+            if (!response || !response.success) {
+                throw new Error(response?.message || 'Failed to process wallet payment');
+            }
+
+            if (response.success) {
+                toast.success("Payment successful using wallet balance!");
+                navigate("/user/success", {
+                    state: {
+                        orderId: response.data.orderId,
+                        orderDetails: response.data
+                    },
+                    replace: true
+                });
+            }
+        } else {
+            // Handle cash on delivery
+            const response = await orderService.createOrder(orderData);
+            
+            if (!response || !response.success) {
+                throw new Error(response?.message || 'Failed to create order');
+            }
   
-        // Successfully created order
-        toast.success("Order placed successfully!");
-        navigate("/user/success", {
-          state: {
-            orderId: response.data.orderId,
-            orderDetails: response.data
-          },
-          replace: true
-        });
-      }
+            toast.success("Order placed successfully!");
+            navigate("/user/success", {
+                state: {
+                    orderId: response.data.orderId,
+                    orderDetails: response.data
+                },
+                replace: true
+            });
+        }
     } catch (error) {
-      console.error("Order creation failed:", error);
-      toast.error(error.message || "Failed to place order. Please try again.");
+        console.error("Order creation failed:", error);
+        toast.error(error.message || "Failed to place order. Please try again.");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   const handleAddressAdded = async () => {
     try {

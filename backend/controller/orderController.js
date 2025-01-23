@@ -3,11 +3,13 @@ const Cart = require('../model/cartSchema');
 const ProductSchema = require('../model/productSchema');
 const { validateCoupon, markCouponAsUsed } = require('../controller/couponController')
 const Coupon = require("../model/couponSchema")
+const Wallet= require("../model/walletSchema")
 // Create a new order from cart
 const dotenv = require("dotenv")
 dotenv.config();
 const Razorpay = require("razorpay")
-const crypto = require("crypto")
+const crypto = require("crypto");
+const { useWalletBalance } = require('./walletController');
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
@@ -173,6 +175,34 @@ const createOrder = async (req, res) => {
                     error: error.message
                 });
             }
+        }
+
+        if(paymentMethod==="wallet"){
+           try{
+            const walletResponse = await useWalletBalance({
+                user: { data: { id: userId } },
+                body: {
+                    amount: currentAmount,
+                    orderId: order._id
+                }
+            });
+
+            if (!walletResponse.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: walletResponse.message || 'Wallet payment failed'
+                });
+            }
+
+            order.paymentStatus = 'completed';
+            order.orderStatus = 'Pending';
+           }
+           catch(error){
+            return res.status(400).json({
+                success:false,
+                message:"wallet payment failed:" +error.message
+            })
+           }
         }
 
         // Save order
@@ -395,7 +425,7 @@ const cancelOrder = async (req, res) => {
             });
         }
 
-        // Update stock quantities
+        // Update stock quantities for each item
         await Promise.all(order.items.map(async (item) => {
             const product = await ProductSchema.findById(item.product);
             const sizeIndex = product.availableSizes.findIndex(s => s.size === item.size);
@@ -408,11 +438,12 @@ const cancelOrder = async (req, res) => {
             }
         }));
 
-        
+        // Mark order and all items as cancelled
         order.orderStatus = 'Cancelled';
         order.cancelReason = cancelReason;
-        order.paymentStatus = 'failed';
-        order.currentAmount = 0; // Set current amount to 0 for cancelled orders
+        order.currentAmount = 0;
+
+        // Cancel all items
         order.items.forEach(item => {
             if (item.itemStatus !== 'Cancelled') {
                 item.itemStatus = 'Cancelled';
@@ -421,14 +452,49 @@ const cancelOrder = async (req, res) => {
                 item.currentPrice = 0;
             }
         });
-        if (order.paymentStatus !== 'pending') {
-            order.refundHistory.push({
-                amount: order.currentAmount,
-                date: new Date(),
-                reason: cancelReason,
-                status: 'pending'
-            });
-            order.totalRefundAmount = order.originalAmount; // Use original amount for refund
+
+        // Handle refund for completed payments
+        if (order.paymentStatus === 'completed') {
+            // Specifically handle wallet and Razorpay payments
+            if (['wallet', 'razorpay'].includes(order.paymentMethod)) {
+                const wallet = await Wallet.findOne({ user: userId });
+                
+                if (wallet) {
+                    // Credit full order amount to wallet
+                    wallet.transactions.push({
+                        amount: order.originalAmount,
+                        type: 'credit',
+                        orderId: order.orderId,
+                        description: `Full order refund for ${order.orderId}`,
+                        status: 'completed'
+                    });
+                    
+                    wallet.balance += order.originalAmount;
+                    await wallet.save();
+
+                    // Update order refund status
+                    order.paymentStatus = 'refunded';
+                    order.totalRefundAmount = order.originalAmount;
+                    order.refundHistory.push({
+                        amount: order.originalAmount,
+                        date: new Date(),
+                        reason: cancelReason,
+                        status: 'completed',
+                        itemId: order.items[0].product
+                    });
+                }
+            } else {
+                // For other payment methods, create refund history
+                order.refundHistory.push({
+                    amount: order.originalAmount,
+                    date: new Date(),
+                    reason: cancelReason,
+                    status: 'pending',
+                    itemId: order.items[0].product
+                });
+                order.totalRefundAmount = order.originalAmount;
+                order.paymentStatus = 'refunded';
+            }
         }
 
         await order.save();
@@ -438,34 +504,27 @@ const cancelOrder = async (req, res) => {
             order: {
                 orderId: order.orderId,
                 originalAmount: order.originalAmount,
-                initialTotalAmount: order.initialTotalAmount,
                 currentAmount: order.currentAmount,
                 orderStatus: order.orderStatus,
                 cancelReason: order.cancelReason,
                 paymentStatus: order.paymentStatus,
-                // refundStatus: order.refundHistory.length > 0 ? 'pending' : 'none'
+                totalRefundAmount: order.totalRefundAmount,
+                refundHistory: order.refundHistory
             }
         });
     } catch (error) {
         console.error('Error in cancelOrder:', error);
-        res.status(500).json({ message: 'Error cancelling order', error: error.message });
+        res.status(500).json({ 
+            message: 'Error cancelling order', 
+            error: error.message 
+        });
     }
 };
 const cancelOrderItem = async (req, res) => {
-
-    console.log("ghjkjhgffghjkkjdfgh")
     try {
-        console.log('\n=== Starting cancelOrderItem ===');
         const { orderId, itemId } = req.params;
         const { cancelReason } = req.body;
         const userId = req.user.data.id;
-        
-        console.log('Request Parameters:', {
-            orderId,
-            itemId,
-            cancelReason,
-            userId
-        });
 
         const order = await Order.findOne({
             _id: orderId,
@@ -475,28 +534,12 @@ const cancelOrderItem = async (req, res) => {
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
-        console.log(order)
 
-        console.log('\nOrder Initial State:', {
-            orderId: order._id,
-            orderStatus: order.orderStatus,
-            currentAmount: order.currentAmount,
-            itemsCount: order.items.length
-        });
         // Find the specific item
         const orderItem = order.items.find(item => item.product._id.toString() === itemId);
         if (!orderItem) {
             return res.status(404).json({ message: 'Item not found in order' });
         }
-
-        console.log('\nTarget Item Initial State:', {
-            itemId: orderItem._id,
-            productName: orderItem.product.productName,
-            currentStatus: orderItem.itemStatus,
-            price: orderItem.price,
-            discountedPrice: orderItem.discountedPrice,
-            quantity: orderItem.quantity
-        });
 
         // Check if item is already cancelled
         if (orderItem.itemStatus === 'Cancelled') {
@@ -507,7 +550,6 @@ const cancelOrderItem = async (req, res) => {
 
         // Check if cancellation is allowed based on order status
         if (!['Pending', 'Processing'].includes(order.orderStatus)) {
-            console.log('❌ Invalid order status for cancellation:', order.orderStatus);
             return res.status(400).json({
                 message: 'Order items cannot be cancelled in current status'
             });
@@ -519,60 +561,26 @@ const cancelOrderItem = async (req, res) => {
         orderItem.cancelledAt = new Date();
         orderItem.currentPrice = 0; // Set current price to 0 for cancelled item
 
-        console.log('\nItem After Cancellation:', {
-            itemId: orderItem._id,
-            newStatus: orderItem.itemStatus,
-            cancelReason: orderItem.cancelReason,
-            cancelledAt: orderItem.cancelledAt,
-            newCurrentPrice: orderItem.currentPrice
-        });
-
         // Restore product quantity
         const product = await ProductSchema.findById(orderItem.product);
         const sizeIndex = product.availableSizes.findIndex(s => s.size === orderItem.size);
         
-        console.log('\nProduct Stock Before Update:', {
-            productId: product._id,
-            productName: product.productName,
-            size: orderItem.size,
-            currentQuantity: sizeIndex !== -1 ? product.availableSizes[sizeIndex].quantity : 'Size not found',
-            quantityToRestore: orderItem.quantity
-        });
-
         if (sizeIndex !== -1) {
             product.availableSizes[sizeIndex].quantity += orderItem.quantity;
             const totalStock = product.availableSizes.reduce((sum, size) => sum + size.quantity, 0);
             product.status = totalStock > 0 ? 'active' : 'outOfStock';
             await product.save();
-
-            console.log('Product Stock After Update:', {
-                newQuantity: product.availableSizes[sizeIndex].quantity,
-                newTotalStock: totalStock,
-                newStatus: product.status
-            });
         }
 
         // Count active items after cancellation
         const activeItems = order.items.filter(item => item.itemStatus !== 'Cancelled');
         
-        console.log('\nActive Items Analysis:', {
-            totalItems: order.items.length,
-            activeItemsCount: activeItems.length,
-            cancelledItemsCount: order.items.length - activeItems.length
-        });
-
         // Calculate new current amount based on remaining active items
         const previousAmount = order.currentAmount;
         order.currentAmount = activeItems.reduce((sum, item) => {
             const itemPrice = item.discountedPrice || item.price;
             return sum + (itemPrice * item.quantity);
         }, 0);
-
-        console.log('\nAmount Calculations:', {
-            previousAmount,
-            newAmount: order.currentAmount,
-            difference: previousAmount - order.currentAmount
-        });
 
         // Update order status ONLY if all items are cancelled
         if (activeItems.length === 0) {
@@ -582,36 +590,47 @@ const cancelOrderItem = async (req, res) => {
         // Handle refund if payment was already made
         if (order.paymentStatus === 'completed') {
             const refundAmount = orderItem.discountedPrice || orderItem.price;
-            orderItem.refundStatus = 'pending';
-            orderItem.refundAmount = refundAmount * orderItem.quantity;
-            
-            const refundEntry = {
-                amount: refundAmount * orderItem.quantity,
-                date: new Date(),
-                reason: cancelReason,
-                status: 'pending',
-                itemId: itemId
-            };
-            
-            order.refundHistory.push(refundEntry);
-            order.totalRefundAmount = (order.totalRefundAmount || 0) + (refundAmount * orderItem.quantity);
+            const refundTotal = refundAmount * orderItem.quantity;
 
-            console.log('\nRefund Processing:', {
-                itemRefundAmount: orderItem.refundAmount,
-                refundEntry,
-                newTotalRefundAmount: order.totalRefundAmount
-            });
+            // Wallet and Razorpay payment refund handling
+            if (['wallet', 'razorpay'].includes(order.paymentMethod)) {
+                const wallet = await Wallet.findOne({ user: userId });
+                if (wallet) {
+                    wallet.transactions.push({
+                        amount: refundTotal,
+                        type: 'credit',
+                        orderId: order.orderId,
+                        description: `Refund for cancelled item ${itemId}`,
+                        status: 'completed'
+                    });
+                    wallet.balance += refundTotal;
+                    await wallet.save();
+
+                    orderItem.refundStatus = 'completed';
+                    orderItem.refundAmount = refundTotal;
+                    orderItem.refundDate = new Date();
+                } else {
+                    // Fallback if wallet not found
+                    orderItem.refundStatus = 'failed';
+                }
+            } else {
+                // For other payment methods
+                const refundEntry = {
+                    amount: refundTotal,
+                    date: new Date(),
+                    reason: cancelReason,
+                    status: 'pending',
+                    itemId: itemId
+                };
+                
+                order.refundHistory.push(refundEntry);
+                order.totalRefundAmount = (order.totalRefundAmount || 0) + refundTotal;
+                orderItem.refundStatus = 'pending';
+                orderItem.refundAmount = refundTotal;
+            }
         }
 
         await order.save();
-        console.log('\nFinal Order State:', {
-            orderStatus: order.orderStatus,
-            currentAmount: order.currentAmount,
-            totalRefundAmount: order.totalRefundAmount,
-            activeItemsCount: activeItems.length
-        });
-
-        console.log('=== Completed cancelOrderItem ===\n');
 
         res.status(200).json({
             success: true,
@@ -624,7 +643,7 @@ const cancelOrderItem = async (req, res) => {
                 totalRefundAmount: order.totalRefundAmount,
                 paymentStatus: order.paymentStatus,
                 items: order.items.map(item => ({
-                    product: item.product._id || item.product,  // Handle both populated and unpopulated cases
+                    product: item.product._id || item.product,
                     productName: item.productName,
                     quantity: item.quantity,
                     size: item.size,
@@ -636,13 +655,12 @@ const cancelOrderItem = async (req, res) => {
                     refundStatus: item.refundStatus,
                     refundAmount: item.refundAmount,
                     discountedPrice: item.discountedPrice,
-                    price:item.price
+                    price: item.price
                 }))
             }
         });
     } catch (error) {
-        console.error(' Error in cancelOrderItem:', error);
-        console.error('Error stack:', error.stack);
+        console.error('Error in cancelOrderItem:', error);
         res.status(500).json({
             success: false,
             message: 'Error processing item cancellation',
