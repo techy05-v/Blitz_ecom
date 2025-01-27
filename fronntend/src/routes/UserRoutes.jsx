@@ -22,6 +22,7 @@ import TrackOrder from "../components/userComponents/TrackOrder";
 import CheckoutPage from "../components/userComponents/CheckOut";
 import OrderSuccessPage from "../components/userComponents/OrderSuccessPage"
 import OrderDetails from "../components/userComponents/OrderDetail";
+import OrderFailurePage from "../components/userComponents/OrderFailurePage";
 const UserRoutes = () => {
   return (
     <Routes>
@@ -83,6 +84,7 @@ const UserRoutes = () => {
         <Route path="track" element={<TrackOrder />} />
         <Route path="checkout" element={<CheckoutPage/>}/>
         <Route path="success" element={<OrderSuccessPage/>}/>
+        <Route path="failure" element={<OrderFailurePage/>}/>
         <Route path="orders/:orderId" element={<OrderDetails/>}/>
       </Route>
 

@@ -9,7 +9,7 @@ import { CreditCard, Wallet, DollarSign, Plus, Tag, MapPin, CreditCardIcon, Truc
 import AddressFormModal from "../../confirmationModal/AddressModal";
 import { jwtDecode } from "jwt-decode";
 import Cookies from 'js-cookie';
-
+import OrderFailurePage from "../../components/userComponents/OrderFailurePage";
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const [addresses, setAddresses] = useState([]);
@@ -386,19 +386,16 @@ const CheckoutPage = () => {
       toast.error('Razorpay SDK failed to load. Please try again later.');
       return false;
     }
-
+  
     try {
-      // Create order using the existing createOrder endpoint
       const response = await orderService.createOrder(orderData);
       
-      // Validate the response structure
-      if (!response || !response.success || !response.razorpayOrder || !response.razorpayOrder.id || !response.data || !response.data.orderId) {
+      if (!response || !response.success || !response.razorpayOrder || !response.razorpayOrder.id) {
         throw new Error('Invalid order response structure');
       }
-
-      // Store the orderId from the response for later use
+  
       const storeOrderId = response.data.orderId;
-
+  
       return new Promise((resolve, reject) => {
         const options = {
           key: "rzp_test_OjGNfvyaKeJQu5",
@@ -407,31 +404,40 @@ const CheckoutPage = () => {
           name: 'Your Store Name',
           description: 'Order Payment',
           order_id: response.razorpayOrder.id,
+          retry: {
+            enabled: false
+          },
           handler: async function (razorpayResponse) {
             try {
               const verificationResponse = await orderService.verifyPayment({
                 razorpay_payment_id: razorpayResponse.razorpay_payment_id,
                 razorpay_order_id: razorpayResponse.razorpay_order_id,
                 razorpay_signature: razorpayResponse.razorpay_signature,
-                orderId: storeOrderId // Use the stored orderId here
+                orderId: storeOrderId
               });
-
+               
               if (verificationResponse.success) {
                 toast.success("Payment successful!");
                 navigate("/user/success", {
                   state: {
                     orderId: storeOrderId,
-                    orderDetails: response.data // Pass the complete order details
+                    orderDetails: response.data
                   },
                   replace: true
                 });
                 resolve(true);
               } else {
-                reject(new Error(verificationResponse.message || 'Payment verification failed'));
+                throw new Error(verificationResponse.message || 'Payment verification failed');
               }
             } catch (error) {
               console.error('Payment verification error:', error);
-              toast.error('Payment verification failed. Please contact support.');
+              navigate("/user/failure", {
+                state: {
+                  orderId: storeOrderId,
+                  reason: error.message || 'Payment verification failed'
+                },
+                replace: true
+              });
               reject(error);
             }
           },
@@ -444,21 +450,54 @@ const CheckoutPage = () => {
           },
           theme: {
             color: '#9333EA'
+          },
+          modal: {
+            ondismiss: () => {
+              console.error('Payment modal dismissed', {
+                storeOrderId,
+                timestamp: new Date().toISOString()
+              });
+          
+              navigate("/user/failure", {
+                state: {
+                  orderId: storeOrderId,
+                  reason: 'Payment cancelled by user'
+                },
+                replace: true
+              });
+              reject(new Error('Payment cancelled'));
+            }
           }
         };
-
+  
         const paymentObject = new window.Razorpay(options);
+        
         paymentObject.on('payment.failed', function (response) {
+          // Programmatically close the Razorpay modal
+          window.Razorpay.close();
+          
           console.error('Payment failed:', response.error);
-          toast.error('Payment failed. Please try again.');
+          
+          navigate("/user/failure", {
+            state: {
+              orderId: storeOrderId,
+              reason: response.error.description || 'Payment failed'
+            },
+            replace: true
+          });
           reject(new Error(response.error.description || 'Payment failed'));
         });
-
+  
         paymentObject.open();
       });
     } catch (error) {
       console.error('Order creation failed:', error);
-      toast.error(error.message || 'Failed to create order. Please try again.');
+      navigate("/user/failure", {
+        state: {
+          reason: error.message || 'Failed to create order'
+        },
+        replace: true
+      });
       return false;
     }
   };

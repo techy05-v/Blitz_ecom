@@ -103,6 +103,16 @@ const orderService = {
             };
         }
     },
+    initiateRepayment: async(orderId, paymentMethod) => {
+        try {
+            const response = await axiosInstance.post(`/user/orders/${orderId}/repay`, {
+                paymentMethod: paymentMethod
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.message || 'Failed to initiate repayment');
+        }
+    },
     verifyPayment: async (paymentData) => {
         const {
             razorpay_order_id,

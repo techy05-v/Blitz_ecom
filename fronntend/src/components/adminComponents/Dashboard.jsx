@@ -50,14 +50,16 @@ const SalesChart = ({ salesData }) => {
           <XAxis dataKey="name" />
           <YAxis />
           <Tooltip 
-            formatter={(value, name) => [
-              name === 'sales' ? `$${value.toFixed(2)}` : value, 
-              name === 'sales' ? 'Total Sales' : 'Quantity'
-            ]}
+            formatter={(value, name, props) => {
+              const { payload } = props;
+              return name === 'sales' 
+                ? [`$${value.toLocaleString()}`, 'Total Revenue'] 
+                : [`${value}`, 'Quantity Sold'];
+            }}
           />
           <Legend />
-          <Bar dataKey="sales" fill="#8884d8" name="Total Sales" />
-          <Bar dataKey="quantity" fill="#82ca9d" name="Quantity Sold" />
+          <Bar dataKey="sales" fill="#8884d8" name="Sales Revenue" />
+          <Bar dataKey="quantity" fill="#82ca9d" name="Units Sold" />
         </BarChart>
       </ResponsiveContainer>
     </div>

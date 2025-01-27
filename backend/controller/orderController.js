@@ -168,6 +168,18 @@ const createOrder = async (req, res) => {
                     receipt: receipt
                 };
             } catch (error) {
+                // Restore stock if Razorpay order creation fails
+                for (const update of stockUpdates) {
+                    const product = await ProductSchema.findById(update.productId);
+                    product.availableSizes[update.sizeIndex].quantity += update.quantity;
+                    const totalRemainingStock = product.availableSizes.reduce(
+                        (total, size) => total + size.quantity,
+                        0
+                    );
+                    product.status = totalRemainingStock > 0 ? 'active' : 'outOfStock';
+                    await product.save();
+                }
+
                 console.error('Razorpay order creation error:', error);
                 return res.status(500).json({
                     success: false,
@@ -177,32 +189,31 @@ const createOrder = async (req, res) => {
             }
         }
 
-        if(paymentMethod==="wallet"){
-           try{
-            const walletResponse = await useWalletBalance({
-                user: { data: { id: userId } },
-                body: {
-                    amount: currentAmount,
-                    orderId: order._id
-                }
-            });
+        if (paymentMethod === "wallet") {
+            try {
+                const walletResponse = await useWalletBalance({
+                    user: { data: { id: userId } },
+                    body: {
+                        amount: currentAmount,
+                        orderId: order._id
+                    }
+                });
 
-            if (!walletResponse.success) {
+                if (!walletResponse.success) {
+                    return res.status(400).json({
+                        success: false,
+                        message: walletResponse.message || 'Wallet payment failed'
+                    });
+                }
+
+                order.paymentStatus = 'completed';
+                order.orderStatus = 'Pending';
+            } catch (error) {
                 return res.status(400).json({
                     success: false,
-                    message: walletResponse.message || 'Wallet payment failed'
+                    message: "wallet payment failed:" + error.message
                 });
             }
-
-            order.paymentStatus = 'completed';
-            order.orderStatus = 'Pending';
-           }
-           catch(error){
-            return res.status(400).json({
-                success:false,
-                message:"wallet payment failed:" +error.message
-            })
-           }
         }
 
         // Save order
@@ -832,6 +843,12 @@ const verifyPayment = async (req, res) => {
             .digest("hex");
 
         if (razorpay_signature !== expectedSign) {
+            // Restore product stock
+            await restoreProductStock(order);
+
+            // Delete the order
+            await Order.findByIdAndDelete(order._id);
+
             return res.status(400).json({
                 success: false,
                 message: 'Invalid payment signature'
@@ -839,35 +856,158 @@ const verifyPayment = async (req, res) => {
         }
 
         // Verify payment status with Razorpay
-        const payment = await razorpay.payments.fetch(razorpay_payment_id);
-        if (payment.status !== 'captured') {
-            return res.status(400).json({
+        try {
+            const payment = await razorpay.payments.fetch(razorpay_payment_id);
+            
+            switch (payment.status) {
+                case 'captured':
+                    order.paymentStatus = 'completed';
+                    order.orderStatus = 'Pending';
+                    break;
+                case 'failed':
+                    // Restore product stock
+                    await restoreProductStock(order);
+
+                    // Delete the order
+                    await Order.findByIdAndDelete(order._id);
+
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Payment failed',
+                        reason: payment.error_description || 'Unknown payment failure'
+                    });
+                case 'refunded':
+                    order.paymentStatus = 'refunded';
+                    break;
+                default:
+                    order.paymentStatus = 'pending';
+            }
+
+            order.razorpayPaymentId = razorpay_payment_id;
+            order.razorpaySignature = razorpay_signature;
+            await order.save();
+
+            if (order.paymentStatus !== 'completed') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Payment status: ${order.paymentStatus}`,
+                    paymentStatus: order.paymentStatus
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Payment verified successfully',
+                data: {
+                    orderId: order._id,
+                    paymentId: razorpay_payment_id,
+                    amount: order.currentAmount
+                }
+            });
+
+        } catch (razorpayError) {
+            // Restore product stock
+            await restoreProductStock(order);
+
+            // Delete the order
+            await Order.findByIdAndDelete(order._id);
+
+            return res.status(500).json({
                 success: false,
-                message: 'Payment not captured'
+                message: 'Error verifying payment with Razorpay',
+                error: razorpayError.message
             });
         }
-
-        // Update order status
-        order.paymentStatus = 'completed';
-        order.razorpayPaymentId = razorpay_payment_id;
-        order.razorpaySignature = razorpay_signature;
-        await order.save();
-
-        return res.status(200).json({
-            success: true,
-            message: 'Payment verified successfully',
-            data: {
-                orderId: order._id,
-                paymentId: razorpay_payment_id,
-                amount: order.currentAmount
-            }
-        });
 
     } catch (error) {
         console.error('Payment verification error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Error verifying payment',
+            message: 'Unexpected error during payment verification',
+            error: error.message
+        });
+    }
+};
+const repayOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { paymentMethod = 'razorpay' } = req.body; // Default to razorpay if not specified
+        const userId = req.user.data.id;
+
+        console.log('Finding order:', { orderId, userId });
+        
+        const order = await Order.findOne({ 
+            orderId: orderId,
+            user: userId 
+        });
+
+        if (!order) {
+            console.log('Order not found');
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        console.log('Order found:', {
+            paymentStatus: order.paymentStatus,
+            orderStatus: order.orderStatus,
+            currentAmount: order.currentAmount
+        });
+
+        // Handle Razorpay payment
+        if (paymentMethod === 'razorpay') {
+            const amountInPaise = Math.round(order.currentAmount * 100);
+            const timestamp = Date.now().toString().slice(-8);
+            const randomStr = Math.random().toString(36).substring(2, 6);
+            const receipt = `repay_${timestamp}${randomStr}`;
+
+            try {
+                const razorpayOrder = await razorpay.orders.create({
+                    amount: amountInPaise,
+                    currency: 'INR',
+                    receipt: receipt,
+                    notes: {
+                        orderId: order.orderId,
+                        type: 'repayment'
+                    }
+                });
+
+                // Update order with new Razorpay details
+                order.razorpayOrderId = razorpayOrder.id;
+                order.paymentStatus = 'pending';
+                order.paymentMethod = 'razorpay';
+                await order.save();
+
+                // Modified response structure
+                return res.status(200).json({
+                    success: true,
+                    message: 'Razorpay order created successfully',
+                    razorpayOrderId: razorpayOrder.id, // Changed from nested data structure
+                    amount: amountInPaise,
+                    currency: 'INR',
+                    orderId: order.orderId
+                });
+            } catch (error) {
+                console.error('Razorpay order creation error:', error);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Error creating Razorpay order',
+                    error: error.message
+                });
+            }
+        }
+
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid payment method'
+        });
+
+    } catch (error) {
+        console.error('Repayment order error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error creating repayment order',
             error: error.message
         });
     }
@@ -887,5 +1027,6 @@ module.exports = {
     getAllOrderByAdmin,
     cancelOrderItem,
     verifyPayment,
-    getAdminOrderDetails
+    getAdminOrderDetails,
+    repayOrder
 }

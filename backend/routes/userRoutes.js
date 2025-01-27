@@ -5,7 +5,7 @@ const {googleAuth,getProductById,getAllProductsByUser,getAllCategories,resetPass
 const {verifyUser} = require("../middleware/auth")
 const {addAddress,editAddress,deleteAddress,getAddresses}= require("../controller/addressController")
 const{addToCart,getCartItems ,clearCart ,removeCartItems,updateCartItem }=require("../controller/cartController")
-const{createOrder,getUserOrders,cancelOrder,getOrderDetails,cancelOrderItem,verifyPayment}=require("../controller/orderController")
+const{createOrder,getUserOrders,cancelOrder,getOrderDetails,cancelOrderItem,verifyPayment,repayOrder}=require("../controller/orderController")
 const { createProfile, getProfile, updateProfile, deleteProfileImage } = require("../controller/profileController");
 const {addToWishlist,getWishlist,clearWishlist,removeFromWishlist,}= require("../controller/wishlistController")
 const {
@@ -87,3 +87,4 @@ userRoute.get('/wallet/details', verifyUser, getWalletDetails);
 userRoute.post('/wallet/use', useWalletBalance);
 
 userRoute.get("/orders/:orderId/invoice",verifyUser,downloadInvoice)
+userRoute.post('/orders/:orderId/repay', verifyUser, repayOrder);
