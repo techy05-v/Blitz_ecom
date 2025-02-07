@@ -7,6 +7,7 @@ const dotenv = require("dotenv");
 const UnverifiedUser= require("../model/unverifiedUserModel")
 const { sendOTPEmail, sendPasswordResetEmail } = require("../utils/emailUtils");
 const storeToken =require("../utils/JWT/storeCookie")
+const { generateUserId } = require("../utils/JWT/userIdGenerator");
 const { OAuth2Client } = require("google-auth-library");
 const {
     generateAccessToken,
@@ -240,95 +241,63 @@ const resendOtp = async (req, res) => {
       });
     }
   };
-const googleAuth = async (req, res) => {
+  const googleAuth = async (req, res) => {
     const { token, role } = req.body;
 
-    console.log("Received Google Auth request with token and role:", { token, role });
-
-    if (!token || !role) {
-        console.error("Missing token or role in the request");
-        return res.status(400).json({ error: "Token and role are required" });
-    }
-
-    if (!["user", "admin"].includes(role)) {
-        console.error("Invalid role specified:", role);
-        return res.status(400).json({ error: "Invalid role specified" });
-    }
-
     try {
-        console.log("Initializing Google OAuth2Client...");
         const client = new OAuth2Client({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         });
 
-        console.log("Verifying ID token...");
         const ticket = await client.verifyIdToken({
             idToken: token,
             audience: process.env.GOOGLE_CLIENT_ID,
         });
 
-        const payload = ticket.getPayload();
-        console.log("Token payload:", payload);
+        const { name, email, sub: googleId, picture } = ticket.getPayload();
 
-        if (!payload.email_verified) {
-            console.warn("Unverified email:", payload.email);
-            return res.status(401).json({ message: "Email not verified" });
-        }
+        // Find user by email
+        let user = await User.findOne({ email: email.toLowerCase() });
+        let isNewUser = false;
 
-        const { name, email, sub, picture } = payload;
-        console.log("Verified email:", email);
-
-        console.log("Checking if the email exists in other roles...");
-        // rs
-
-        // if (isOtherRoleExists) {
-        //     console.warn(`Account role mismatch: ${email} is a ${role === "user" ? "admin" : "user"} account`);
-        //     return res.status(401).json({
-        //         message: `This account is a ${role === "user" ? "admin" : "user"} account.`,
-        //     });
-        // }
-
-        console.log("Looking up the user in the database...");
-        let user = await User.findOne({ email });
-
-        if (user && user.isBlocked) {
-            console.warn("Blocked user attempted to log in:", email);
-            return res.status(401).json({
-                message: "Your account has been blocked. Please contact the support team.",
-            });
-        }
-
-        if (!user) {
-            console.log("Creating a new user for:", email);
-            user = new User({
-                full_name: name,
-                email,
-                google_id: sub,
-                avatar: picture,
-            });
-        } else if (!user.google_id) {
-            console.log("Updating existing user with Google ID:", email);
-            user.google_id = sub;
-            if (!user.avatar) {
-                user.avatar = picture;
+        if (user) {
+            // Link Google account if not already linked
+            if (!user.google_id) {
+                user.google_id = googleId;
+                user.avatar = user.avatar || picture;
+                await user.save();
             }
+        } else {
+            // Create new user
+            user = new User({
+                user_name: name,
+                email: email.toLowerCase(),
+                google_id: googleId,
+                avatar: picture,
+                user_id: generateUserId()
+            });
+            await user.save();
+            isNewUser = true;
         }
 
-        console.log("Saving user data...");
-        await user.save();
+        if (user.isBlocked) {
+            return res.status(401).json({
+                message: "Account blocked. Please contact support."
+            });
+        }
 
-        const userDataToGenerateToken = {
+        const tokenData = {
             _id: user._id,
             email: user.email,
             role,
+            user_id: user.user_id
         };
 
-        console.log("Generating access and refresh tokens...");
-        const accessToken = generateAccessToken(role, userDataToGenerateToken);
-        const refreshToken = generateRefreshToken(role, userDataToGenerateToken);
+        const accessToken = generateAccessToken(role, tokenData);
+        const refreshToken = generateRefreshToken(role, tokenData);
 
-        console.log("Saving refresh token to the database...");
+        // Save refresh token
         const newRefreshToken = new RefreshToken({
             token: refreshToken,
             user: role,
@@ -336,36 +305,32 @@ const googleAuth = async (req, res) => {
             expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
-        const savedToken = await newRefreshToken.save();
-        console.log("Refresh token saved:", savedToken);
+        await newRefreshToken.save();
 
-        const { password, ...userDetails } = user.toObject();
+        // Store refresh token in cookie
+        storeToken(
+            `${role}RefreshToken`,
+            refreshToken,
+            7 * 24 * 60 * 60 * 1000,
+            res
+        );
 
-        if (savedToken) {
-            console.log("Storing refresh token in cookies...");
-            storeToken(
-                `${role}RefreshToken`,
-                refreshToken,
-                7 * 24 * 60 * 60 * 1000,
-                res
-            );
+        const { password: _, ...userDetails } = user.toObject();
 
-            console.log("Returning success response for:", email);
-            return res.status(200).json({
-                success: true,
-                message: `${role.charAt(0).toUpperCase() + role.slice(1)} logged in successfully`,
-                userData: userDetails,
-                accessToken,
-                role,
-            });
-        }
-
-        console.error("Failed to save the refresh token for:", email);
-        res.status(500).json({ message: "Failed to log in" });
+        res.status(200).json({
+            success: true,
+            message: isNewUser 
+                ? "Account created successfully" 
+                : "Login successful",
+            userData: userDetails,
+            accessToken,
+            role
+        });
     } catch (error) {
-        console.error("Google Auth Error:", error.stack || error);
-        res.status(500).json({
-            message: "Internal server error. Please try again.",
+        console.error("Google Auth Error:", error);
+        res.status(500).json({ 
+            message: "Authentication failed",
+            error: error.message 
         });
     }
 };
@@ -434,165 +399,173 @@ const adminSignIn = async (req, res) => {
 		res.status(500).json({ message: "Internal server error" });
 	}
 };
-const userSignUp= async(req,res)=>{
-  try{
-    const {user_name,email,password}=req.body
-    const isUserVerified = await User.findOne({email})
-    const isUserExists = await UnverifiedUser.findOne({email})
-    if(isUserExists|| isUserVerified){
-      return res.status(400).json({message:"User already exists"})
-    }
-    const hashedPassword =await hashPassword(password)
-    const otp = generateOTP();
-        
+const userSignUp = async (req, res) => {
+  try {
+      const { user_name, email, password } = req.body;
+      
+      // Check existing users
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      if (existingUser) {
+          return res.status(400).json({
+              message: existingUser.google_id 
+                  ? "This email is already registered with Google. Please use Google Sign-in."
+                  : "User already exists. Please login with your password."
+          });
+      }
 
-    const otpExpiry = Date.now() + 60000;
-    const unverifiedUser= new UnverifiedUser({
-      user_name,
-      email,
-      password:hashedPassword,
-      otp,
-      otpExpiry,
-      role:"user"
-
-    })
-    await unverifiedUser.save()
-    await sendOTPEmail(email,otp);
-    return res.status(201).json({
-            message: "OTP sent to your email.",
-        });
-  }
-  catch(error){
-    console.log("SignUp Error: ", error);
-        res.status(500).json({ message: "Something went wrong" });
-  }
-}
-const userLogin = async(req,res)=>{
-    try{
-      const {email,password,remember}=req.body
-      const user = await User.findOne({email})
-      const isUserVerified= await UnverifiedUser.findOne({
-        email,
-      })
-      if(!user && isUserVerified.role!=="user"){
-  
-        return res 
-        .status(400)
-        .json({message:"This is a Admin Account"})
-      }
-      if (isUserVerified) {
-              return res
-                  .status(403)
-                  .json({ not_verified: true, message: "Verify your email" });
-          }
-      if(!user && !isUserVerified){
-        return res.status(400).json({message:"Account not Found"})
-      }
-      const isMatch = await comparePassword(password,user?.password)
-      if(!isMatch){
-        return res.status(400).json({message:"Incorect Password"})
-      }
-      if(user?.isBlocked){
-        return res.status(401).json({message:"Account Blocked"})
-      }
-      const userDataToGenerateToken ={
-        id:user?._id,
-        email:user?.email,
-        user_id:user?.user_id,
-        role:"user"
-      }
-      console.log(userDataToGenerateToken)
-      const accessToken =generateAccessToken(
-        "user",
-        userDataToGenerateToken
-      )
-      const refreshToken = generateRefreshToken(
-        "user",
-        userDataToGenerateToken
-  
-      )
-      console.log(accessToken,refreshToken)
-  
-      const newRefreshToken = new RefreshToken({
-        token: refreshToken,
-        user: userDataToGenerateToken?.role,
-        user_id: userDataToGenerateToken?._id,
-        expires_at: remember
-          ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          : new Date(Date.now() + 24 * 60 * 60 * 1000),
+      // Check unverified users
+      const unverifiedUser = await UnverifiedUser.findOne({ 
+          email: email.toLowerCase() 
       });
-      const savedToken= await newRefreshToken.save()
-      const  {password: _, ...userDetails} =user.toObject();
-      if (savedToken) {
-              storeToken(
-                  "userRefreshToken",
-                  refreshToken,
-                  remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
-                  res
-              );
-    console.log(savedToken)
-              res.status(200).json({
-                  success: true,
-                  message: "user login successfully",
-                  userData: userDetails,
-                  accessToken,
-                  role: "user",
-              });
-          }
-    }
-  
-    catch(error){
-      console.log("SignIn Error: ", error);
-          res.status(500).json({ message: "Internal server error" });
-    }
+      if (unverifiedUser) {
+          return res.status(400).json({
+              message: "User registration pending verification. Please verify your email."
+          });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const user_id = generateUserId();
+
+      const newUnverifiedUser = new UnverifiedUser({
+          user_name,
+          email: email.toLowerCase(),
+          password: hashedPassword,
+          user_id,
+          otp,
+          otpExpiry: Date.now() + 120000, // 2 minutes
+          role: "user"
+      });
+
+      await newUnverifiedUser.save();
+      await sendOTPEmail(email, otp);
+      
+      return res.status(201).json({
+          message: "OTP sent to your email."
+      });
+  } catch (error) {
+      console.error("SignUp Error:", error);
+      res.status(500).json({ message: "Internal server error" });
   }
-const verifyOtp = async (req, res) => {
+};
+
+const userLogin = async (req, res) => {
+  try {
+      const { email, password, remember } = req.body;
+      const user = await User.findOne({ email: email.toLowerCase() });
+
+      // Check if user exists
+      if (!user) {
+          return res.status(400).json({ message: "Account not found" });
+      }
+
+      // If user exists but has only Google auth
+      if (user.google_id && !user.password) {
+          return res.status(400).json({ 
+              message: "Please use Google Sign-in for this account" 
+          });
+      }
+
+      // Verify password
+      const isMatch = await comparePassword(password, user.password);
+      if (!isMatch) {
+          return res.status(400).json({ message: "Incorrect password" });
+      }
+
+      if (user.isBlocked) {
+          return res.status(401).json({ message: "Account blocked" });
+      }
+
+      const tokenData = {
+          _id: user._id,
+          email: user.email,
+          role: "user",
+          user_id: user.user_id
+      };
+
+      const accessToken = generateAccessToken("user", tokenData);
+      const refreshToken = generateRefreshToken("user", tokenData);
+
+      // Save refresh token
+      const newRefreshToken = new RefreshToken({
+          token: refreshToken,
+          user: "user",
+          user_id: user._id,
+          expires_at: new Date(
+              Date.now() + (remember ? 7 : 1) * 24 * 60 * 60 * 1000
+          ),
+      });
+
+      await newRefreshToken.save();
+
+      // Store refresh token in cookie
+      storeToken(
+          "userRefreshToken",
+          refreshToken,
+          (remember ? 7 : 1) * 24 * 60 * 60 * 1000,
+          res
+      );
+
+      const { password: _, ...userDetails } = user.toObject();
+
+      res.status(200).json({
+          success: true,
+          message: "Login successful",
+          userData: userDetails,
+          accessToken,
+          role: "user"
+      });
+  } catch (error) {
+      console.error("Login Error:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+  const verifyOtp = async (req, res) => {
     try {
         const { email, otp } = req.body;
-
-        const unverifiedUser = await UnverifiedUser.findOne({ email });
+        const unverifiedUser = await UnverifiedUser.findOne({ 
+            email: email.toLowerCase() 
+        });
 
         if (!unverifiedUser) {
             return res.status(400).json({ message: "User not found." });
         }
 
-        if (unverifiedUser.otp != otp) {
+        if (unverifiedUser.otp !== otp) {
             return res.status(400).json({ message: "Invalid OTP" });
         }
 
         if (Date.now() > unverifiedUser.otpExpiry) {
             return res.status(400).json({ message: "OTP has expired" });
         }
-        const randomPart = Math.random().toString(36).substring(2, 6); // 4 random alphanumeric characters
-        const timestampPart = Date.now().toString().slice(-4); // Last 4 digits of the current timestamp
-        const uniqueUserId = `vishnu${randomPart}${timestampPart}`;
 
-        let userData;
-        if (unverifiedUser.role === "user") {
-            userData = new User({
-                user_name: unverifiedUser.user_name,
-                email: unverifiedUser.email,
-                password: unverifiedUser.password,
-                is_verified: true,
-                user_id: uniqueUserId,
-            });
-            await userData.save();
-        } 
+        const newUser = new User({
+            user_name: unverifiedUser.user_name,
+            email: unverifiedUser.email,
+            password: unverifiedUser.password,
+            user_id: unverifiedUser.user_id,
+            is_verified: true
+        });
 
-        const { password: _, ...otherDetails } = userData.toObject();
+        await newUser.save();
+        await UnverifiedUser.deleteOne({ email: email.toLowerCase() });
 
-        const token = createToken(userData._id);
-
-        await UnverifiedUser.deleteOne({ email });
+        const { password: _, ...userData } = newUser.toObject();
+        const token = jwt.sign(
+            { id: newUser._id }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: "4m" }
+        );
 
         res.status(200).json({
             message: "Email verified successfully.",
-            userData: otherDetails,
-            token: token,
+            userData,
+            token
         });
     } catch (error) {
-        console.log("OTP Verification Error: ", error);
-        res.status(500).json({ message: "Something went wrong" });
+        console.error("OTP Verification Error:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 const forgotPassword = async (req, res) => {

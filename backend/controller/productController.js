@@ -1,5 +1,6 @@
 const Product = require('../model/productSchema');
 const Category = require('../model/categorySchema');
+const mongoose = require("mongoose")
 const { calculateBestDiscount,
   calculateSalePrice,
   updateProductPrices } = require("../utils/priceUtils/priceCalculation")
@@ -48,71 +49,107 @@ const createProduct = async (req, res) => {
 };
 
 // Update product
+// In productController.js, update the updateProduct function
+
 const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    console.log("iddddfffffffffffffff",id)
+    let updateData = req.body;
+
+    // Input validation
+    // if (!mongoose.Types.ObjectId.isValid(id)) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Invalid product ID format'
+    //   });
+    // }
 
     // First check if product exists
     const existingProduct = await Product.findById(id);
     if (!existingProduct) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Product not found' 
+        message: 'Product not found'
       });
     }
 
-    // Clean availableSizes data if provided
-    if (updateData.availableSizes) {
-      updateData.availableSizes = updateData.availableSizes.map(size => ({
-        size: size.size,
-        quantity: size.quantity
-      }));
+    // Validate price and discount values upfront
+    if (updateData.regularPrice !== undefined) {
+      if (typeof updateData.regularPrice !== 'number' || updateData.regularPrice < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Regular price must be a non-negative number'
+        });
+      }
     }
 
-    // Remove status field
-    delete updateData.status;
-
-    // Handle image updates if needed
-    if (updateData.images && updateData.images.length > 0) {
-      const existingImages = existingProduct.images || [];
-      const removedImages = existingImages.filter(img => !updateData.images.includes(img));
-
-      // Only attempt cloudinary operations if cloudinary is defined
-      if (removedImages.length > 0 && typeof cloudinary !== 'undefined') {
-        await Promise.all(
-          removedImages.map(async (imageUrl) => {
-            try {
-              const publicId = imageUrl.split('/').pop().split('.')[0];
-              await cloudinary.uploader.destroy(`products/${publicId}`);
-            } catch (error) {
-              console.error('Error deleting image:', error);
-              // Continue execution even if image deletion fails
-            }
-          })
-        );
+    if (updateData.discountPercent !== undefined) {
+      if (typeof updateData.discountPercent !== 'number' || 
+          updateData.discountPercent < 0 || 
+          updateData.discountPercent > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Discount percentage must be between 0 and 100'
+        });
       }
     }
 
     // Calculate new sale price if needed
-    if (updateData.regularPrice || updateData.discountPercent !== undefined) {
-      const discount = updateData.discountPercent !== undefined ?
-        updateData.discountPercent :
-        existingProduct.discountPercent;
-      const regularPrice = updateData.regularPrice || existingProduct.regularPrice;
-      updateData.salePrice = calculateSalePrice(regularPrice, discount);
+    if (updateData.regularPrice !== undefined || updateData.discountPercent !== undefined) {
+      const regularPrice = updateData.regularPrice ?? existingProduct.regularPrice;
+      const discountPercent = updateData.discountPercent ?? existingProduct.discountPercent;
+      
+      try {
+        updateData.salePrice = calculateSalePrice(regularPrice, discountPercent);
+      } catch (priceError) {
+        return res.status(400).json({
+          success: false,
+          message: priceError.message
+        });
+      }
     }
 
-    // Update the product
-    let updatedProduct = await Product.findByIdAndUpdate(
+    // Rest of the existing validation logic...
+    if (updateData.availableSizes) {
+      if (!Array.isArray(updateData.availableSizes)) {
+        return res.status(400).json({
+          success: false,
+          message: 'availableSizes must be an array'
+        });
+      }
+
+      updateData.availableSizes = updateData.availableSizes.map(size => {
+        if (!size.size || typeof size.quantity !== 'number' || size.quantity < 0) {
+          throw new Error('Invalid size data provided');
+        }
+        return {
+          size: size.size,
+          quantity: size.quantity,
+          stockStatus: size.quantity > 0 ? 'inStock' : 'outOfStock'
+        };
+      });
+    }
+
+    // Remove protected fields
+    const protectedFields = ['status', '_id', 'createdAt', 'updatedAt'];
+    protectedFields.forEach(field => delete updateData[field]);
+
+    // Update the product with validation
+    const updatedProduct = await Product.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { 
+        new: true, 
+        runValidators: true,
+        context: 'query'
+      }
     ).populate('category', 'CategoryName')
-     .populate({
-       path: 'offers',
-       select: 'name discountPercent startDate endDate isActive targetType'
-     });
+      .populate({
+        path: 'offers',
+        select: 'name discountPercent startDate endDate isActive targetType',
+        match: { isActive: true }
+      });
 
     if (!updatedProduct) {
       return res.status(404).json({
@@ -121,34 +158,40 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    // Update prices
+    // Update prices with error boundary
     try {
       await updateProductPrices(updatedProduct);
       
       // Fetch fresh data after price update
-      updatedProduct = await Product.findById(id)
+      const finalProduct = await Product.findById(id)
         .populate('category', 'CategoryName')
         .populate({
           path: 'offers',
-          select: 'name discountPercent startDate endDate isActive targetType'
+          select: 'name discountPercent startDate endDate isActive targetType',
+          match: { isActive: true }
         });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Product updated successfully',
+        product: finalProduct
+      });
     } catch (priceError) {
       console.error('Error updating prices:', priceError);
-      // Continue with the original updated product if price update fails
+      return res.status(200).json({
+        success: true,
+        message: 'Product updated successfully, but price calculations may be outdated',
+        warning: 'Failed to update prices',
+        product: updatedProduct
+      });
     }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Product updated successfully',
-      product: updatedProduct
-    });
 
   } catch (error) {
     console.error('Error in updateProduct:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error updating product',
-      error: error.message
+      message: error.message || 'Error updating product',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

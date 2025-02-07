@@ -16,9 +16,9 @@ const razorpay = new Razorpay({
 });
 const createOrder = async (req, res) => {
     try {
-        const { shippingAddressId, paymentMethod, orderNotes, appliedCouponId } = req.body;
-        const userId = req.user.data.id;
-
+        const { shippingAddressId, paymentMethod, orderNotes, appliedCouponId,tax,shipping } = req.body;
+        const userId = req.user.data._id;
+        console.log("uuuuuuuuu",userId)
         // Get user's cart with populated product details
         const cart = await Cart.findOne({ user: userId })
             .populate({
@@ -109,42 +109,43 @@ const createOrder = async (req, res) => {
         }
 
         // Create order instance with proper price mapping
+        const taxAmount = parseFloat(tax) || 0;
+        const shippingAmount = parseFloat(shipping) || 0;
+        const finalAmount = currentAmount + taxAmount + shippingAmount;
+        if (paymentMethod === 'cash_on_delivery' && finalAmount > 1000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cash on Delivery is not available for orders above Rs 1000'
+            });
+        }
+
+        // Create order instance with all charges
         const order = new Order({
             user: userId,
-            items: cart.items.map(item => {
-                // Get the appropriate price (sale price if available, otherwise regular price)
-                const basePrice = item.product.salePrice || item.product.regularPrice;
-                let discountedPrice = basePrice;
-
-                // Apply coupon discount if available
-                if (appliedCoupon) {
-                    const discountRatio = appliedCoupon.discountAmount / originalAmount;
-                    discountedPrice = basePrice * (1 - discountRatio);
-                }
-
-                return {
-                    product: item.product._id,
-                    quantity: item.quantity,
-                    size: item.size,
-                    price: item.product.regularPrice, // Original regular price
-                    discountedPrice: discountedPrice // Final price after all discounts
-                };
-            }),
+            items: cart.items.map(item => ({
+                product: item.product._id,
+                quantity: item.quantity,
+                size: item.size,
+                price: item.product.regularPrice,
+                discountedPrice: item.product.salePrice || item.product.regularPrice
+            })),
             shippingAddress: shippingAddressId,
             originalAmount,
             initialTotalAmount: originalAmount,
-            currentAmount,
+            currentAmount: finalAmount, // Use final amount including tax and shipping
+            finalAmount:finalAmount,
+            taxAmount,
+            shippingAmount,
             paymentMethod,
             orderNotes,
             couponApplied: appliedCoupon,
             estimatedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         });
-
         // Handle Razorpay order creation
         let razorpayOrderData = null;
         if (paymentMethod === 'razorpay') {
             try {
-                const amountInPaise = Math.round(currentAmount * 100);
+                const amountInPaise = Math.round(finalAmount * 100);
 
                 const timestamp = Date.now().toString().slice(-8);
                 const randomStr = Math.random().toString(36).substring(2, 6);
@@ -191,30 +192,43 @@ const createOrder = async (req, res) => {
 
         if (paymentMethod === "wallet") {
             try {
+                console.log("Initiating wallet payment...");
+                console.log("User ID:", userId);
+                console.log("Final Amount:", finalAmount);
+                console.log("Order ID:", order._id);
+        
                 const walletResponse = await useWalletBalance({
-                    user: { data: { id: userId } },
+                    user: { data: { user_id: userId } },
                     body: {
-                        amount: currentAmount,
-                        orderId: order._id
+                        amount: finalAmount,
+                        orderId: order._id,
+                        userId:userId
                     }
                 });
-
+        
+                console.log("Wallet Response:", walletResponse);
+        
                 if (!walletResponse.success) {
+                    console.error("Wallet payment failed:", walletResponse.message);
                     return res.status(400).json({
                         success: false,
-                        message: walletResponse.message || 'Wallet payment failed'
+                        message: walletResponse.message || "Wallet payment failed"
                     });
                 }
-
-                order.paymentStatus = 'completed';
-                order.orderStatus = 'Pending';
+        
+                console.log("Wallet payment successful! Updating order status...");
+                order.paymentStatus = "completed";
+                order.orderStatus = "Pending";
+        
             } catch (error) {
+                console.error("Error processing wallet payment:", error);
                 return res.status(400).json({
                     success: false,
-                    message: "wallet payment failed:" + error.message
+                    message: "Wallet payment failed: " + error.message
                 });
             }
         }
+        
 
         // Save order
         await order.save();
@@ -250,6 +264,7 @@ const createOrder = async (req, res) => {
         });
 
         // Prepare response
+
         const responseData = {
             success: true,
             message: 'Order created successfully',
@@ -259,6 +274,9 @@ const createOrder = async (req, res) => {
                 shippingAddress: order.shippingAddress,
                 originalAmount: order.originalAmount,
                 currentAmount: order.currentAmount,
+                taxAmount: order.taxAmount,
+                shippingAmount: order.shippingAmount,
+                totalAmount: finalAmount,
                 paymentMethod: order.paymentMethod,
                 orderStatus: order.orderStatus,
                 paymentStatus: order.paymentStatus
@@ -285,7 +303,7 @@ const createOrder = async (req, res) => {
 // Get all orders for a user
 const getUserOrders = async (req, res) => {
     try {
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
@@ -317,7 +335,7 @@ const getUserOrders = async (req, res) => {
 const getOrderDetails = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
 
         const order = await Order.findOne({
             _id: orderId,
@@ -374,12 +392,12 @@ const getAdminOrderDetails = async (req, res) => {
     try {
         const { orderId } = req.params;
         console.log("orderId:",orderId)
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         console.log("userId",userId)
         const order = await Order.findOne({
             _id: orderId
         })
-            .populate('items.product')
+            .populate('items.product','productName')
             .populate('shippingAddress');
             console.log("hhjjjj",order)
         if (!order) {
@@ -428,7 +446,7 @@ const cancelOrder = async (req, res) => {
     try {
         const { orderId } = req.params;
         const { cancelReason } = req.body;
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
  
         const order = await Order.findOne({ _id: orderId, user: userId });
  
@@ -555,7 +573,7 @@ const cancelOrderItem = async (req, res) => {
     try {
         const { orderId, itemId } = req.params;
         const { cancelReason } = req.body;
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
 
         const order = await Order.findOne({
             _id: orderId,
@@ -639,7 +657,8 @@ const cancelOrderItem = async (req, res) => {
 
                     orderItem.refundStatus = 'completed';
                     orderItem.refundAmount = refundTotal;
-                    orderItem.refundDate = new Date();
+                    orderItem.refundDate = new Date(); 
+                    order.totalRefundAmount = (order.totalRefundAmount || 0) + refundTotal;
                 } else {
                     // Fallback if wallet not found
                     orderItem.refundStatus = 'failed';
@@ -932,7 +951,7 @@ const repayOrder = async (req, res) => {
     try {
         const { orderId } = req.params;
         const { paymentMethod = 'razorpay' } = req.body; // Default to razorpay if not specified
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
 
         console.log('Finding order:', { orderId, userId });
         

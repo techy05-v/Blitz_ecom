@@ -102,7 +102,7 @@ function Sidebar() {
               <SidebarItem icon={<FaClipboardList />} text="Orders" to="/admin/orders" />
               <SidebarItem icon={<FaImage />} text="Banner" to="/admin/banner" />
               <SidebarItem icon={<FaTicketAlt />} text="Coupon" to="/admin/coupon" />
-              <SidebarItem icon={<FaCog />} text="Settings" to="/admin/settings" />
+              <SidebarItem icon={<FaCog />} text="SalesReport" to="/admin/settings" />
             </ul>
           </div>
         </nav>

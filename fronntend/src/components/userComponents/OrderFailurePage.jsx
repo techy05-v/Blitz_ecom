@@ -1,7 +1,8 @@
 import { XCircle } from 'lucide-react';  // Import the appropriate icon
-import { useLocation } from 'react-router-dom';
+import { useLocation ,useNavigate } from 'react-router-dom';
 const OrderFailurePage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { orderId, reason } = location.state || {};
 
   return (

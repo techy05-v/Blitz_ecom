@@ -51,7 +51,6 @@ const Coupon = () => {
         setError('');
         setSuccess('');
 
-        // Format the data properly before sending
         const formattedCoupon = {
             ...newCoupon,
             offerPercentage: Number(newCoupon.offerPercentage),
@@ -111,19 +110,19 @@ const Coupon = () => {
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-6 text-gray-800">Admin Coupon Management</h1>
             
-            <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div className="bg-white rounded-lg shadow p-6 mb-8">
                 <h2 className="text-xl font-semibold mb-4 text-gray-700">Create New Coupon</h2>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && (
-                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-                            <span className="block sm:inline">{error}</span>
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                            {error}
                         </div>
                     )}
                     
                     {success && (
-                        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-                            <span className="block sm:inline">{success}</span>
+                        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                            {success}
                         </div>
                     )}
 
@@ -137,7 +136,7 @@ const Coupon = () => {
                                 name="code"
                                 value={newCoupon.code}
                                 onChange={handleInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="e.g., SUMMER2024"
                                 required
                             />
@@ -152,7 +151,7 @@ const Coupon = () => {
                                 name="expiresOn"
                                 value={newCoupon.expiresOn}
                                 onChange={handleInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 required
                             />
                         </div>
@@ -166,7 +165,7 @@ const Coupon = () => {
                                 name="offerPercentage"
                                 value={newCoupon.offerPercentage}
                                 onChange={handleInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Enter percentage"
                                 min="0"
                                 max="100"
@@ -183,7 +182,7 @@ const Coupon = () => {
                                 name="minimumPrice"
                                 value={newCoupon.minimumPrice}
                                 onChange={handleInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Minimum amount"
                                 min="0"
                                 required
@@ -199,7 +198,7 @@ const Coupon = () => {
                                 name="maximumDiscount"
                                 value={newCoupon.maximumDiscount}
                                 onChange={handleInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Maximum discount"
                                 min="0"
                                 required
@@ -215,7 +214,7 @@ const Coupon = () => {
                                 name="usageLimit"
                                 value={newCoupon.usageLimit}
                                 onChange={handleInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Number of times coupon can be used"
                                 min="1"
                                 required
@@ -231,7 +230,7 @@ const Coupon = () => {
                             name="description"
                             value={newCoupon.description}
                             onChange={handleInputChange}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Coupon description"
                             rows="3"
                             required
@@ -240,7 +239,7 @@ const Coupon = () => {
 
                     <button
                         type="submit"
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50"
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={loading}
                     >
                         {loading ? 'Creating...' : 'Create Coupon'}
@@ -248,12 +247,12 @@ const Coupon = () => {
                 </form>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-xl font-semibold mb-4 text-gray-700">Active Coupons</h2>
                 
                 {loading && (
-                    <div className="text-center py-4">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <div className="flex justify-center py-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                     </div>
                 )}
 
@@ -264,7 +263,7 @@ const Coupon = () => {
                                 <h3 className="text-lg font-bold text-gray-800">{coupon.code}</h3>
                                 <button
                                     onClick={() => handleDelete(coupon._id)}
-                                    className="text-red-500 hover:text-red-700"
+                                    className="text-red-500 hover:text-red-600 focus:outline-none"
                                     disabled={loading}
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

@@ -6,7 +6,7 @@ const addToWishlist = async (req, res) => {
     try {
         const { productId } = req.body;
         console.log(productId)
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         console.log(userId)
         const userIdString = req.user.data.user_id;
 
@@ -63,7 +63,7 @@ const addToWishlist = async (req, res) => {
 const removeFromWishlist = async (req, res) => {
     try {
         const { productId } = req.params;
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         
         const wishlist = await Wishlist.findOne({ user: userId });
         if (!wishlist) {
@@ -94,7 +94,7 @@ const removeFromWishlist = async (req, res) => {
 
 const getWishlist = async (req, res) => {
     try {
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         let wishlist = await Wishlist.findOne({ user: userId });
 
         if (!wishlist) {
@@ -130,7 +130,7 @@ const getWishlist = async (req, res) => {
 
 const clearWishlist = async (req, res) => {
     try {
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         const wishlist = await Wishlist.findOne({ user: userId });
         
         if (!wishlist) {

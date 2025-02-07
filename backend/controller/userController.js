@@ -24,51 +24,64 @@ const JWT_SECRET =process.env.JWT_SECRET
 
 const getAllProductsByUser = async (req, res) => {
   try {
-    const { sort,search } = req.query;
+    const { sort, search, page = 1, limit = 12 } = req.query;
     let sortOption = {};
-    let searchQuery={}
-
+    let searchQuery = {};
     
-    // Fix sort direction
+    // Sort options
     if (sort === "Low-High") {
-      sortOption = { regularPrice: 1 };  // ascending order
+      sortOption = { regularPrice: 1 };
     } else if (sort === "High-Low") {
-      sortOption = { regularPrice: -1 }; // descending order
-    }
-    else if(sort==="A-Z"){
-        sortOption={productName:1}
-    }
-    else if(sort==="Z-A"){
-      sortOption={productName:-1}
-    }
-    // handle search
-
-    if(search){
-      searchQuery={
-          $or:[
-            {productName:{$regex:search,$options:"i"}},
-            {descriptiion:{$regex:search,$options:"i"}}
-          ]
-      }
+      sortOption = { regularPrice: -1 };
+    } else if (sort === "A-Z") {
+      sortOption = { productName: 1 };
+    } else if (sort === "Z-A") {
+      sortOption = { productName: -1 };
     }
 
-    const finalQuery={
+    // Search query
+    if (search) {
+      searchQuery = {
+        $or: [
+          { productName: { $regex: search, $options: "i" } },
+          { descriptiion: { $regex: search, $options: "i" } }
+        ]
+      };
+    }
+
+    const finalQuery = {
       ...searchQuery,
-      isactive:true
-    }
+      isactive: true
+    };
+
+    // Calculate skip value for pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Get total count for pagination
+    const totalProducts = await Product.countDocuments(finalQuery);
+    
+    // Fetch paginated products
     const products = await Product.find(finalQuery)
       .populate({
         path: 'category',
         match: { isactive: true },
         select: 'CategoryName'
       })
-      .sort(sortOption);  // Apply the sort
+      .sort(sortOption)
+      .skip(skip)
+      .limit(parseInt(limit));
 
     const activeProducts = products.filter(product => product.category);
     
     res.status(200).json({ 
-      message: 'Products fetched successfully', 
-      activeProducts 
+      message: 'Products fetched successfully',
+      activeProducts,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalProducts / parseInt(limit)),
+        totalProducts,
+        productsPerPage: parseInt(limit)
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching products', error: error.message });
@@ -372,9 +385,7 @@ const getProfile = async (req,res)=>{
     })
   }
 }
-const updateProfile = async (req, res) => {
-  
-}
+
 
 
 module.exports ={googleAuth,getProductById,getAllProductsByUser,getAllCategories,resetPassword,forgotPassword }

@@ -69,6 +69,53 @@ const EditProduct = () => {
   }, [currentProduct]);
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Special handling for numeric fields
+    if (name === 'regularPrice' || name === 'discountPercent') {
+      // Convert to number and validate
+      const numValue = parseFloat(value);
+      
+      // Handle empty string case
+      if (value === '') {
+        setFormData(prevState => ({
+          ...prevState,
+          [name]: ''
+        }));
+        return;
+      }
+      
+      // Validate number
+      if (isNaN(numValue)) {
+        toast.error(`${name} must be a valid number`);
+        return;
+      }
+      
+      // Validate non-negative
+      if (numValue < 0) {
+        toast.error(`${name} cannot be negative`);
+        return;
+      }
+      
+      // For regularPrice, ensure it's not zero
+      if (name === 'regularPrice' && numValue === 0) {
+        toast.error('Regular price must be greater than zero');
+        return;
+      }
+      
+      // For discountPercent, ensure it's not above 100
+      if (name === 'discountPercent' && numValue > 100) {
+        toast.error('Discount percentage cannot exceed 100%');
+        return;
+      }
+      
+      setFormData(prevState => ({
+        ...prevState,
+        [name]: numValue
+      }));
+      return;
+    }
+    
+    // Default handling for non-numeric fields
     setFormData(prevState => ({
       ...prevState,
       [name]: value

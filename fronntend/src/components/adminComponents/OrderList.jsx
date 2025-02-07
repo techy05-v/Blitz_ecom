@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaEye, FaSpinner, FaShoppingBag, FaSearch, FaFilter, FaCalendar, FaDownload } from 'react-icons/fa';
+import { FaEye, FaSpinner, FaShoppingBag, FaSearch, FaFilter, FaCalendar, FaDownload, FaUndo } from 'react-icons/fa';
 import { axiosInstance } from '../../api/axiosConfig';
 
 const OrderList = () => {
@@ -37,6 +37,18 @@ const OrderList = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const hasReturnItems = (order) => {
+    return order.items?.some(item => 
+      item.itemStatus === 'Return_Pending' || item.itemStatus === 'Returned'
+    ) || false;
+  };
+
+  const getReturnItemsCount = (order) => {
+    return order.items?.filter(item => 
+      item.itemStatus === 'Return_Pending' || item.itemStatus === 'Returned'
+    ).length || 0;
   };
 
   const getStatusColor = (status) => {
@@ -136,7 +148,11 @@ const OrderList = () => {
             { label: 'Total Orders', value: orders.length, color: 'from-blue-500 to-blue-600' },
             { label: 'Pending', value: orders.filter(o => o.orderStatus === 'Pending').length, color: 'from-yellow-500 to-yellow-600' },
             { label: 'Delivered', value: orders.filter(o => o.orderStatus === 'Delivered').length, color: 'from-green-500 to-green-600' },
-            { label: 'Cancelled', value: orders.filter(o => o.orderStatus === 'Cancelled').length, color: 'from-red-500 to-red-600' },
+            { 
+              label: 'Returns', 
+              value: orders.filter(o => hasReturnItems(o)).length, 
+              color: 'from-orange-500 to-orange-600' 
+            },
           ].map((stat, index) => (
             <div key={index} className="bg-white bg-opacity-90 backdrop-blur-lg rounded-xl shadow-lg p-4">
               <div className="flex items-center justify-between">
@@ -171,59 +187,84 @@ const OrderList = () => {
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Date</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Total</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Returns</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {orders.map((order) => (
-                    <tr 
-                      key={order._id}
-                      className="hover:bg-gray-50 transition-all duration-200"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-gray-900">#{order._id.slice(-6)}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <FaCalendar className="text-gray-400" />
-                          <span className="text-sm text-gray-600">
-                            {order.createdAt 
-                              ? new Date(order.createdAt).toLocaleDateString('en-US', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric'
-                                })
-                              : 'N/A'}
+                  {orders.map((order) => {
+                    const returnCount = getReturnItemsCount(order);
+                    const hasReturns = hasReturnItems(order);
+                    
+                    return (
+                      <tr 
+                        key={order._id}
+                        className={`hover:bg-gray-50 transition-all duration-200 ${
+                          hasReturns ? 'bg-orange-50' : ''
+                        }`}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            {hasReturns && (
+                              <span className="flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-orange-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                              </span>
+                            )}
+                            <span className="text-sm font-medium text-gray-900">
+                              {order.orderId || `#${order._id.slice(-6)}`}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <FaCalendar className="text-gray-400" />
+                            <span className="text-sm text-gray-600">
+                              {order.createdAt 
+                                ? new Date(order.createdAt).toLocaleDateString('en-US', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })
+                                : 'N/A'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm font-medium text-gray-900">
+                            ₹{(order.currentAmount || 0).toFixed(2)}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-medium text-gray-900">
-                          ${(order.currentAmount || 0).toFixed(2)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.orderStatus)}`}>
-                          {order.orderStatus || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Link
-                          to={`/admin/orders/${order._id}`}
-                          className="inline-flex items-center px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-all duration-200"
-                        >
-                          <FaEye className="mr-2" />
-                          View Details
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.orderStatus)}`}>
+                            {order.orderStatus || 'Unknown'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {hasReturns && (
+                            <div className="flex items-center space-x-2">
+                              <FaUndo className="text-orange-500" />
+                              <span className="text-sm text-orange-600 font-medium">
+                                {returnCount} {returnCount === 1 ? 'item' : 'items'}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <Link
+                            to={`/admin/orders/${order._id}`}
+                            className="inline-flex items-center px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-all duration-200"
+                          >
+                            <FaEye className="mr-2" />
+                            View Details
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="px-6 py-4 border-t border-gray-100">

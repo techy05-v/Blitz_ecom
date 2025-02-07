@@ -113,6 +113,10 @@ const orderSchema = new mongoose.Schema({
     unique: true,
     default: () => 'ORD' + Date.now() + Math.floor(Math.random() * 1000)
   },
+  finalAmount: {
+    type: Number,
+    required: true
+  },
   couponApplied: {
     couponId: {
       type: mongoose.Schema.Types.ObjectId,

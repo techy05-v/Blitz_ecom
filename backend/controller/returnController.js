@@ -5,7 +5,7 @@ const {addRefundToWallet} = require("../controller/walletController")
 const requestReturn = async (req, res) => {
     try {
       const { orderId, itemId, reason } = req.body;
-      const userId = req.user.data.id;
+      const userId = req.user.data._id;
   
       console.log('Attempting to find order with:', {
         searchOrderId: orderId,

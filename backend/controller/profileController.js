@@ -54,7 +54,7 @@ const createProfile = async (req, res) => {
 
 const getProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user.data.id)
+        const user = await User.findById(req.user.data._id)
             .select("-password -resetToken -resetTokenExpiry");
         
         if (!user) {
@@ -80,7 +80,7 @@ const updateProfile = async (req, res) => {
     try {
         const { user_name, phone_number, gender, dob,profileImage } = req.body;
         
-        if (!req.user || !req.user.data.id) {
+        if (!req.user || !req.user.data._id) {
             return res.status(401).json({
                 success: false,
                 message: "Authentication required"
@@ -123,7 +123,7 @@ const updateProfile = async (req, res) => {
 
 const deleteProfileImage = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
+        const user = await User.findById(req.user.data._id);
         
         if (!user || !user.profileImage) {
             return res.status(404).json({

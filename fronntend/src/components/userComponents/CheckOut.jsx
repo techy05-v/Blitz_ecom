@@ -95,6 +95,7 @@ const CheckoutPage = () => {
   const getUserIdFromToken = () => {
     try {
       const token = Cookies.get('user_access_token');
+      console.log("token",token)
       if (!token) {
         console.log("No token found");
         return null;
@@ -102,7 +103,7 @@ const CheckoutPage = () => {
 
       const decoded = jwtDecode(token);
       console.log("Decoded token:", decoded);
-      return decoded.data.id;
+      return decoded.data._id;
     } catch (error) {
       console.error("Error decoding token:", error);
       return null;
@@ -166,20 +167,21 @@ const CheckoutPage = () => {
   
     setLoading(true);
     try {
-        const orderData = {
-            shippingAddressId: selectedAddress._id,
-            paymentMethod: selectedPaymentMethod.id,
-            orderNotes: "",
-            items: cartItems.map((item) => ({
-                product: item.product._id,
-                quantity: item.quantity,
-                size: item.size,
-                price: item.price,
-                discountedPrice: item.discountedPrice,
-            })),
-            totalAmount: orderSummary.total,
-            appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null
-        };
+      const orderData = {
+        shippingAddressId: selectedAddress._id,
+        paymentMethod: selectedPaymentMethod.id,
+        orderNotes: "",
+        items: cartItems.map((item) => ({
+            product: item.product._id,
+            quantity: item.quantity,
+            size: item.size,
+            price: item.price,
+            discountedPrice: item.discountedPrice,
+        })),
+        tax: orderSummary.tax,           // Add this
+        shipping: orderSummary.shipping, // Add this
+        appliedCouponId: appliedCoupon ? appliedCoupon.couponId : null
+    };
   
         if (selectedPaymentMethod.id === 'razorpay') {
             const paymentInitiated = await handleRazorpayPayment(orderData);
@@ -251,6 +253,7 @@ const CheckoutPage = () => {
   
     try {
       const userId = getUserIdFromToken();
+      console.log("userId",userId)
       if (!userId) {
         toast.error("Authentication required to apply coupon");
         return;
@@ -388,7 +391,14 @@ const CheckoutPage = () => {
     }
   
     try {
-      const response = await orderService.createOrder(orderData);
+      // Ensure orderData includes the complete total with tax and shipping
+      const completeOrderData = {
+        ...orderData,
+        // Make sure to use the total that includes tax and shipping
+        totalAmount: orderSummary.total // This now includes subtotal + tax + shipping - discount
+      };
+  
+      const response = await orderService.createOrder(completeOrderData);
       
       if (!response || !response.success || !response.razorpayOrder || !response.razorpayOrder.id) {
         throw new Error('Invalid order response structure');
@@ -399,7 +409,8 @@ const CheckoutPage = () => {
       return new Promise((resolve, reject) => {
         const options = {
           key: "rzp_test_OjGNfvyaKeJQu5",
-          amount: response.razorpayOrder.amount,
+          // Convert to smallest currency unit (paise for INR)
+          amount: Math.round(orderSummary.total * 100), // Convert to paise and ensure it's rounded
           currency: response.razorpayOrder.currency,
           name: 'Your Store Name',
           description: 'Order Payment',
@@ -446,7 +457,14 @@ const CheckoutPage = () => {
             contact: selectedAddress?.phone_number || '',
           },
           notes: {
-            shipping_address: `${selectedAddress?.street}, ${selectedAddress?.city}, ${selectedAddress?.state} ${selectedAddress?.pincode}`
+            shipping_address: `${selectedAddress?.street}, ${selectedAddress?.city}, ${selectedAddress?.state} ${selectedAddress?.pincode}`,
+            order_summary: JSON.stringify({
+              subtotal: orderSummary.subtotal,
+              tax: orderSummary.tax,
+              shipping: orderSummary.shipping,
+              discount: orderSummary.discount,
+              total: orderSummary.total
+            })
           },
           theme: {
             color: '#9333EA'
@@ -473,7 +491,6 @@ const CheckoutPage = () => {
         const paymentObject = new window.Razorpay(options);
         
         paymentObject.on('payment.failed', function (response) {
-          // Programmatically close the Razorpay modal
           window.Razorpay.close();
           
           console.error('Payment failed:', response.error);
@@ -706,16 +723,6 @@ const CheckoutPage = () => {
                                 </p>
                               )}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCouponCode(coupon.code);
-                                handleApplyCoupon();
-                              }}
-                              className="px-4 py-2 text-purple-600 hover:text-purple-800 font-medium transition duration-300 rounded-lghover:bg-purple-50"
-                            >
-                              Apply
-                            </button>
                           </div>
                         </div>
                       ))

@@ -46,7 +46,7 @@ const {approveReturn,processRefund,getReturnStatus}= require("../controller/retu
 const {
     generateSalesReport,
     exportToExcel,
-    exportToPDF
+    exportToPDF,getsalereportByAdmin
   } = require('../controller/salesReport.js');
   
 
@@ -117,7 +117,7 @@ router.get("/return/status/:orderId/:itemId",verifyAdmin,getReturnStatus)
 // sales report 
 
 router.get('/report',verifyAdmin, generateSalesReport);
-
+router.get("/salereport",verifyAdmin,getsalereportByAdmin)
 // Download Excel report
 router.get('/export/excel',  verifyAdmin,exportToExcel);
 

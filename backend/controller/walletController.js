@@ -3,9 +3,9 @@ const Wallet = require("../model/walletSchema")
 
 const useWalletBalance = async (req, res) => {
     try {
-        const { amount, orderId } = req.body;
-        const userId = req.user.data.id;
-
+        const { amount, orderId ,userId} = req.body;
+        console.log("userId",req.body)
+        console.log("uuss",userId)
         if (!amount || amount <= 0) {
             return {
                 success: false,
@@ -14,6 +14,7 @@ const useWalletBalance = async (req, res) => {
         }
 
         const wallet = await Wallet.findOne({ user: userId });
+        console.log("ggghhhhhh",wallet)
         if (!wallet || wallet.balance < amount) {
             return {
                 success: false,
@@ -88,13 +89,13 @@ const addRefundToWallet = async(userId, amount, orderId) => {
 
 const getWalletDetails = async(req, res) => {
     try {
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
         const wallet = await Wallet.findOne({ user: userId });
-        
+        console
         if (!wallet) {
             return res.status(200).json({
                 success: true,

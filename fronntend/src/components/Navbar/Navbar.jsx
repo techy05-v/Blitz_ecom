@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { userLogout } from "../../redux/slice/UserSlice";
 import Cookies from "js-cookie";
 import { Search, User, Heart, ShoppingCart, LogOut, Menu, X, Triangle } from 'lucide-react';
@@ -36,24 +36,62 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const cartQuantity = useSelector(state => state.cart.totalQuantity);
-  const handleSearchChnage=(e)=>{
-    setSearchQuery(e.target.value)
-  }
+
+  // Update search query when URL changes
+  useEffect(() => {
+    const searchFromUrl = searchParams.get('search');
+    setSearchQuery(searchFromUrl || '');
+    
+    // Listen for popstate (back/forward button) events
+    const handlePopState = () => {
+      const currentSearchParam = new URLSearchParams(window.location.search).get('search');
+      setSearchQuery(currentSearchParam || '');
+      if (!currentSearchParam) {
+        setIsSearchOpen(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [location.search, searchParams]);
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
   const handleLogout = () => {
     dispatch(userLogout());
     Cookies.remove("accessToken");
     Cookies.remove("refreshToken");
-    navigate("/user/login");
+    navigate("/");
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setSearchParams({ search: searchQuery.trim() });
       navigate(`/user/shop?search=${encodeURIComponent(searchQuery.trim())}`);
-      setIsSearchOpen(false);
-      setSearchQuery("");
+    } else {
+      setSearchParams({});
+      navigate('/user/shop');
     }
+    setIsSearchOpen(false);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchParams({});
+    if (location.pathname === '/user/shop') {
+      // If we're already on the shop page, just update the search params
+      navigate('/user/shop', { replace: true });
+    } else {
+      // If we're on a different page, navigate to shop
+      navigate('/user/shop');
+    }
+    setIsSearchOpen(false);
   };
 
   const navLinks = [
@@ -156,7 +194,7 @@ const Navbar = () => {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={handleSearchChnage}
+                    onChange={handleSearchChange}
                     placeholder="Search products..."
                     className="w-full rounded-lg bg-gray-700 px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 cursor-text"
                   />
@@ -166,6 +204,15 @@ const Navbar = () => {
                   >
                     <Search className="h-5 w-5" />
                   </button>
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={clearSearch}
+                      className="rounded-lg bg-gray-700 px-4 py-2 text-white hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
                 </form>
               </div>
             </div>
@@ -179,16 +226,27 @@ const Navbar = () => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={handleSearchChnage}
+                onChange={handleSearchChange}
                 placeholder="Search products..."
-                className="w-full pl-4 pr-10 py-2 border border-gray-700 rounded-lg focus:outline-none focus:border-cyan-400 bg-gray-900 text-white"
+                className="w-full pl-4 pr-20 py-2 border border-gray-700 rounded-lg focus:outline-none focus:border-cyan-400 bg-gray-900 text-white"
               />
-              <button
-                type="submit"
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-cyan-400"
-              >
-                <Search className="h-5 w-5" />
-              </button>
+              <div className="absolute right-3 top-2.5 flex items-center space-x-2">
+                <button
+                  type="submit"
+                  className="text-gray-400 hover:text-cyan-400"
+                >
+                  <Search className="h-5 w-5" />
+                </button>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="text-gray-400 hover:text-cyan-400"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         )}
@@ -198,4 +256,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-

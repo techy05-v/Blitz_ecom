@@ -1,177 +1,200 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Heart, Star } from 'lucide-react';
-import { wishlistAPI } from '../../api/wishlistServices/wishlistService';
-import { toast } from 'sonner';
+"use client"
 
-const ProductCard = ({ 
-  id, 
-  name, 
-  price, 
-  images, 
-  discountPercent = 0, 
-  rating = 0, 
-  reviewCount = 0, 
-  isNew = false, 
+import { useState, useEffect } from "react"
+import { Heart, Star } from "lucide-react"
+import Modal from "../../confirmationModal/Modal"
+import Cookies from 'js-cookie'
+import { useNavigate } from "react-router-dom"
+import { wishlistAPI } from '../../api/wishlistServices/wishlistService'
+
+const ProductCard = ({
+  id,
+  name,
+  price,
+  images,
+  discountPercent = 0,
+  rating = 0,
+  reviewCount = 0,
+  isNew = false,
   availableSizes = [],
   isInWishlist = false,
-  onWishlistUpdate = () => {}
+  onWishlistUpdate = () => {},
 }) => {
-  const [isWishlisted, setIsWishlisted] = useState(isInWishlist);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalType, setModalType] = useState("");
+  const [userAccessToken, setUserAccessToken] = useState(null);
+  const [localIsInWishlist, setLocalIsInWishlist] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const navigate = useNavigate();
 
-  // Check initial wishlist state when component mounts
+  // Fetch initial wishlist state when component mounts
   useEffect(() => {
-    checkWishlistStatus();
-  }, []);
+    const token = Cookies.get("user_access_token");
+    setUserAccessToken(token);
+    
+    if (token) {
+      checkWishlistStatus();
+    }
+  }, [id]);
+
+  // Update local state when isInWishlist prop changes
+  useEffect(() => {
+    setLocalIsInWishlist(isInWishlist);
+  }, [isInWishlist]);
 
   const checkWishlistStatus = async () => {
     try {
       const wishlistItems = await wishlistAPI.getWishlist();
-      const isItemInWishlist = wishlistItems.some(item => item.product._id === id);
-      setIsWishlisted(isItemInWishlist);
+      const isItemInWishlist = wishlistItems.some(item => 
+        item._id === id || item.product?._id === id
+      );
+      setLocalIsInWishlist(isItemInWishlist);
     } catch (error) {
-      console.error('Error checking wishlist status:', error);
+      console.error("Error checking wishlist status:", error);
     }
   };
 
-  const discountedPrice = price != null && discountPercent != null
-    ? (price * (1 - (discountPercent || 0) / 100)).toFixed(2)
-    : price?.toFixed(2) || '0.00';
-
-  const imageUrl = images && images.length > 0 
-    ? images[0] 
-    : "/placeholder.svg?height=300&width=300";
-
-  const formatPrice = (value) => {
-    return value != null ? value.toFixed(2) : '0.00';
+  const isAuthenticated = () => {
+    return !!userAccessToken;
   };
 
-  const totalStock = Array.isArray(availableSizes) 
-    ? availableSizes.reduce((sum, size) => sum + (size.quantity || 0), 0)
-    : 0;
-    
-  const isOutOfStock = totalStock === 0;
+  const handleProductClick = (e) => {
+    e.preventDefault();
+    if (!isAuthenticated()) {
+      setModalType("view");
+      setIsModalOpen(true);
+    } else {
+      navigate(`/user/product/${id}`);
+    }
+  };
 
   const handleWishlistClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (isLoading) return;
 
-    setIsLoading(true);
+    if (!isAuthenticated()) {
+      setModalType("wishlist");
+      setIsModalOpen(true);
+      return;
+    }
+
+    if (isUpdating) return; // Prevent multiple clicks while updating
+
     try {
-      // First check current wishlist status
-      const wishlistItems = await wishlistAPI.getWishlist();
-      const isItemInWishlist = wishlistItems.some(item => item.product._id === id);
-
-      if (isItemInWishlist) {
-        // If item is in wishlist, remove it
+      setIsUpdating(true);
+      
+      if (localIsInWishlist) {
         await wishlistAPI.removeFromWishlist(id);
-        setIsWishlisted(false);
+        setLocalIsInWishlist(false);
         onWishlistUpdate(id, false);
-        toast.success(`${name} has been removed from your wishlist`);
       } else {
-        // If item is not in wishlist, add it
         await wishlistAPI.addToWishlist(id);
-        setIsWishlisted(true);
+        setLocalIsInWishlist(true);
         onWishlistUpdate(id, true);
-        toast.success(`${name} has been added to your wishlist`);
       }
     } catch (error) {
-      // Check if error is due to item already being in wishlist
-      if (error.response?.data?.message?.includes('already in wishlist')) {
-        setIsWishlisted(true); // Update local state to reflect actual status
-        toast.error('This item is already in your wishlist');
-      } else {
-        toast.error('Failed to update wishlist. Please try again later.');
-      }
-      console.error('Wishlist update error:', error);
+      console.error("Wishlist operation failed:", error);
+      // Revert local state if operation failed
+      setLocalIsInWishlist(!localIsInWishlist);
     } finally {
-      setIsLoading(false);
+      setIsUpdating(false);
     }
   };
 
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const navigateToLogin = () => {
+    navigate("/login");
+    closeModal();
+  };
+
+  const discountedPrice =
+    price != null && discountPercent != null
+      ? (price * (1 - (discountPercent || 0) / 100)).toFixed(2)
+      : price?.toFixed(2) || "0.00";
+
+  const imageUrl =
+    images && images.length > 0 ? images[0] : "/placeholder.svg?height=300&width=300";
+
+  const totalStock = Array.isArray(availableSizes)
+    ? availableSizes.reduce((sum, size) => sum + (size.quantity || 0), 0)
+    : 0;
+
+  const isOutOfStock = totalStock === 0;
+
   return (
     <div className="group relative bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
+      {/* Product Image Section */}
       <div className="relative aspect-square">
-        {/* Product Image */}
-        <img
-          src={imageUrl}
-          alt={name || 'Product'}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+        <div onClick={handleProductClick} className="cursor-pointer">
+          <img
+            src={imageUrl}
+            alt={name || "Product"}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        </div>
 
         {/* Wishlist Button */}
-        <button 
+        <button
           type="button"
           onClick={handleWishlistClick}
-          disabled={isLoading}
+          disabled={isUpdating}
           className={`absolute top-2 right-2 p-2 bg-white rounded-full shadow-sm transition-all duration-300 z-10
-            ${isWishlisted ? 'text-red-500' : 'text-gray-700'} 
-            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'}
-            opacity-100`}
-          title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            ${localIsInWishlist ? "text-red-500" : "text-gray-700"} 
+            ${isUpdating ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100 opacity-100"}`}
+          title={localIsInWishlist ? "Remove from wishlist" : "Add to wishlist"}
         >
-          <Heart className={`h-5 w-5 ${isWishlisted ? 'fill-current' : ''}`} />
+          <Heart className={`h-5 w-5 ${localIsInWishlist ? "fill-current" : ""}`} />
           <span className="sr-only">
-            {isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            {localIsInWishlist ? "Remove from wishlist" : "Add to wishlist"}
           </span>
         </button>
 
-        {/* New Tag */}
+        {/* New Product Badge */}
         {isNew && (
           <div className="absolute top-2 left-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
             New
           </div>
         )}
-        
-        {/* Stock Status */}
-        <div className={`absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-semibold ${
-          isOutOfStock 
-            ? 'bg-red-500 text-white' 
-            : 'bg-green-500 text-white'
-        }`}>
-          {isOutOfStock ? 'Out of Stock' : 'In Stock'}
+
+        {/* Stock Status Badge */}
+        <div
+          className={`absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-semibold ${
+            isOutOfStock ? "bg-red-500 text-white" : "bg-green-500 text-white"
+          }`}
+        >
+          {isOutOfStock ? "Out of Stock" : "In Stock"}
         </div>
       </div>
-      
-      {/* Product Details */}
+
+      {/* Product Details Section */}
       <div className="p-4">
-        <Link to={`/user/product/${id}`} className="block">
+        <div onClick={handleProductClick} className="block cursor-pointer">
           <h3 className="text-lg font-semibold text-gray-900 mb-1 hover:text-blue-600 transition-colors duration-300">
-            {name || 'Product Name'}
+            {name || "Product Name"}
           </h3>
-          
-          {/* Rating */}
+
+          {/* Rating Section */}
           <div className="flex items-center mb-2">
             <div className="flex items-center">
               {[...Array(5)].map((_, i) => (
-                <Star 
-                  key={i} 
-                  className={`h-4 w-4 ${
-                    i < Math.floor(rating) 
-                      ? 'text-yellow-400 fill-current' 
-                      : 'text-gray-300'
-                  }`} 
+                <Star
+                  key={i}
+                  className={`h-4 w-4 ${i < Math.floor(rating) ? "text-yellow-400 fill-current" : "text-gray-300"}`}
                 />
               ))}
             </div>
-            <span className="ml-2 text-sm text-gray-600">
-              ({reviewCount} reviews)
-            </span>
+            <span className="ml-2 text-sm text-gray-600">({reviewCount} reviews)</span>
           </div>
-          
-          {/* Price */}
+
+          {/* Price Section */}
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xl font-bold text-gray-900">
-                ₹{discountedPrice}
-              </span>
+              <span className="text-xl font-bold text-gray-900">₹{discountedPrice}</span>
               {discountPercent > 0 && price != null && (
-                <span className="ml-2 text-sm text-gray-500 line-through">
-                  ₹{formatPrice(price)}
-                </span>
+                <span className="ml-2 text-sm text-gray-500 line-through">₹{price.toFixed(2)}</span>
               )}
             </div>
             {discountPercent > 0 && (
@@ -180,24 +203,52 @@ const ProductCard = ({
               </span>
             )}
           </div>
-        </Link>
+        </div>
       </div>
-      
+
       {/* View Product Button */}
       <div className="p-4 pt-0">
-        <Link 
-          to={`/user/product/${id}`}
+        <button
+          onClick={handleProductClick}
           className={`block w-full text-center rounded-md py-2 px-3 text-sm font-medium 
             shadow-md transition duration-300 focus:outline-none focus:ring-2 
             focus:ring-offset-2 ${
-              isOutOfStock 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-green-400 hover:bg-green-500 text-white focus:ring-black'
+              isOutOfStock
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-green-400 hover:bg-green-500 text-white focus:ring-black"
             }`}
         >
-          {isOutOfStock ? 'Out of Stock' : 'View Product'}
-        </Link>
+          {isOutOfStock ? "Out of Stock" : "View Product"}
+        </button>
       </div>
+
+      {/* Modal - Only shown for unauthenticated users */}
+      {!isAuthenticated() && (
+        <Modal isOpen={isModalOpen} onClose={closeModal}>
+          <h2 className="text-2xl font-bold mb-4">
+            {modalType === "view" ? "View Product" : "Add to Wishlist"}
+          </h2>
+          <p className="mb-6">
+            {modalType === "view"
+              ? "Please log in to view product details."
+              : "Please log in to add items to your wishlist."}
+          </p>
+          <div className="flex justify-between">
+            <button
+              onClick={navigateToLogin}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+            >
+              Log In
+            </button>
+            <button
+              onClick={closeModal}
+              className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

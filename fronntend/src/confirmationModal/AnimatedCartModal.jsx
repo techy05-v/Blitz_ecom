@@ -23,7 +23,7 @@ const AnimatedCartModal = ({ isOpen, onClose, type = 'success', message }) => {
 
   const handleButtonClick = () => {
     if (isSuccess) {
-      navigate('/user/home'); // Navigate to home page
+      navigate('/user/shop'); // Navigate to home page
     } else {
       onClose(); // Close modal
     }

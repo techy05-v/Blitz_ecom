@@ -4,7 +4,8 @@ const CategorySchema = require("../model/categorySchema")
 const { calculateBestDiscount, calculateSalePrice } = require('../utils/priceUtils/priceCalculation');
 const addToCart = async (req, res) => {
     try {
-        const userId = req?.user?.data?.id;
+        const userId = req?.user?.data?._id;
+        console.log("klllll",userId)
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -148,7 +149,7 @@ const addToCart = async (req, res) => {
 // Rest of the controller functions remain the same
 const getCartItems = async (req, res) => {
     try {
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
         const cart = await Cart.findOne({ user: userId })
             .populate({
                 path: 'items.product',
@@ -230,7 +231,7 @@ const getCartItems = async (req, res) => {
 const updateCartItem = async (req, res) => {
     try {
         const { productId, quantity, size } = req.body;
-        const userId = req.user.data.id;
+        const userId = req.user.data._id;
 
         // Only validate individual product quantity
         if (quantity > 5) {
@@ -310,7 +311,7 @@ const updateCartItem = async (req, res) => {
 const removeCartItems = async (req, res) => {
     try {
         const { productId, size } = req.body
-        const userId = req.user.data.id
+        const userId = req.user.data._id
 
         const cart = await Cart.findOne({ user: userId })
         if (!cart) {
@@ -345,7 +346,7 @@ const removeCartItems = async (req, res) => {
 
 const clearCart = async (req, res) => {
     try {
-        const userId = req.user.data.id
+        const userId = req.user.data._id
         const cart = await Cart.findOne({ user: userId })
         if (!cart) {
             return res.status(404).json({

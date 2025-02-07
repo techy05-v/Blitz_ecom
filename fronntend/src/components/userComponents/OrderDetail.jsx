@@ -164,6 +164,13 @@ const OrderDetails = () => {
       return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
     };
 
+    const calculateDiscount = (originalPrice, discountedPrice) => {
+      if (!originalPrice || !discountedPrice) return 0;
+      const discount = originalPrice - discountedPrice;
+      const discountPercentage = (discount / originalPrice) * 100;
+      return discountPercentage.toFixed(0);
+    };
+
     const getReturnStatusColor = (status) => {
       switch (status?.toLowerCase()) {
         case 'return_pending':
@@ -195,10 +202,11 @@ const OrderDetails = () => {
     const isReturnRequested = item.itemStatus === 'Return_Pending';
 
     return (
-      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${item.itemStatus === 'Cancelled' ? 'bg-red-50' :
-          isReturnRequested ? 'bg-yellow-50' :
-            item.returnStatus ? 'bg-blue-50' : 'bg-gray-50 hover:shadow-md'
-        }`}>
+      <div className={`flex items-center p-4 rounded-lg border transition-all duration-200 ${
+        item.itemStatus === 'Cancelled' ? 'bg-red-50' :
+        isReturnRequested ? 'bg-yellow-50' :
+        item.returnStatus ? 'bg-blue-50' : 'bg-gray-50 hover:shadow-md'
+      }`}>
         <div className="flex-1">
           <div className="flex justify-between items-start">
             <div>
@@ -208,14 +216,24 @@ const OrderDetails = () => {
               <p className="text-sm text-gray-600">
                 Size: {item.size || 'N/A'} | Quantity: {item.quantity || 0}
               </p>
-              <p className="text-sm font-semibold text-gray-900 mt-1">
-                ₹{formatPrice(item.price || item.discountedPrice)}
+              <div className="mt-2 space-y-1">
+              {item.price !== item.discountedPrice && (
+                <p className="text-sm text-gray-500">
+                  <span className="line-through">₹{formatPrice(item.price)}</span>
+                  <span className="ml-2 text-green-600">
+                    {calculateDiscount(item.price, item.discountedPrice)}% off
+                  </span>
+                </p>
+              )}
+              <p className="text-lg font-semibold text-gray-900">
+                ₹{formatPrice(item.discountedPrice)}
               </p>
               {item.refundAmount > 0 && (
-                <p className="text-sm text-green-600 mt-1">
+                <p className="text-sm text-green-600">
                   Refund Amount: ₹{formatPrice(item.refundAmount)}
                 </p>
               )}
+            </div>
             </div>
             <div className="flex flex-col items-end">
               {item.itemStatus === 'Cancelled' ? (
@@ -415,124 +433,136 @@ const OrderDetails = () => {
 
 
   const OrderSummary = () => {
-    const [error, setError] = useState(null);
-    const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
-    
+    const [error, setError] = useState(null)
+    const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false)
+    const [isLoadingScript, setIsLoadingScript] = useState(true)
+  
     useEffect(() => {
-      // Check if Razorpay is already loaded
-      if (window.Razorpay) {
-        setIsRazorpayLoaded(true);
-        return;
+      const loadRazorpay = async () => {
+        if (window.Razorpay) {
+          setIsRazorpayLoaded(true)
+          setIsLoadingScript(false)
+          return
+        }
+  
+        return new Promise((resolve) => {
+          const script = document.createElement("script")
+          script.src = "https://checkout.razorpay.com/v1/checkout.js"
+          script.async = true
+          script.onload = () => {
+            setIsRazorpayLoaded(true)
+            setIsLoadingScript(false)
+            resolve(true)
+          }
+          script.onerror = () => {
+            setError("Failed to load Razorpay SDK")
+            setIsLoadingScript(false)
+            resolve(false)
+          }
+          document.body.appendChild(script)
+        })
       }
   
-      // Load Razorpay script
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.onload = () => setIsRazorpayLoaded(true);
-      script.onerror = () => {
-        setError('Failed to load payment system');
-        setIsRazorpayLoaded(false);
-      };
-      document.body.appendChild(script);
+      loadRazorpay()
+    }, [])
   
-      // Cleanup
-      return () => {
-        document.body.removeChild(script);
-      };
-    }, []);
-    
-    if (!order) return null;
+    if (!order) return null
   
     const formatPrice = (amount) => {
-      return typeof amount === 'number' ? amount.toFixed(2) : '0.00';
-    };
+      return typeof amount === "number" ? amount.toFixed(2) : "0.00"
+    }
   
     const handleRepayment = async () => {
       try {
         // Clear any previous errors
-        setError(null);
-        
+        setError(null)
+  
         if (!isRazorpayLoaded) {
-          throw new Error('Payment system is not ready. Please refresh the page.');
-        }
-        
-        // Get the Razorpay key from environment variable
-        const RAZORPAY_KEY_ID = "rzp_test_OjGNfvyaKeJQu5" || 
-                               window.ENV_RAZORPAY_KEY_ID;
-        
-        if (!RAZORPAY_KEY_ID) {
-          throw new Error('Payment configuration is missing');
+          throw new Error("Payment system is not ready. Please refresh the page.")
         }
   
-        const response = await orderService.initiateRepayment(order.orderId);
-        
+        // Get the Razorpay key from environment variable
+        const RAZORPAY_KEY_ID = "rzp_test_OjGNfvyaKeJQu5"
+  
+        if (!RAZORPAY_KEY_ID) {
+          throw new Error("Payment configuration is missing")
+        }
+  
+        const response = await orderService.initiateRepayment(order.orderId)
+  
         if (!response.success || !response.razorpayOrderId) {
-          throw new Error(response.message || 'Invalid payment response from server');
+          throw new Error(response.message || "Invalid payment response from server")
         }
   
         // Create new instance only after confirming script is loaded
         const options = {
           key: RAZORPAY_KEY_ID,
           amount: response.amount,
-          currency: response.currency || 'INR',
+          currency: response.currency || "INR",
           name: "Your Store Name",
           description: `Repayment for order ${order.orderId}`,
           order_id: response.razorpayOrderId,
-          handler: async function (razorpayResponse) {
+          handler: async (razorpayResponse) => {
             try {
               const verifyResponse = await orderService.verifyPayment({
                 razorpay_payment_id: razorpayResponse.razorpay_payment_id,
                 razorpay_order_id: razorpayResponse.razorpay_order_id,
-                razorpay_signature: razorpayResponse.razorpay_signature
-              });
-              
+                razorpay_signature: razorpayResponse.razorpay_signature,
+              })
+  
               if (verifyResponse.success) {
-                toast.success('Payment successful!');
-                setTimeout(() => window.location.reload(), 1500);
+                toast.success("Payment successful!")
+                setTimeout(() => window.location.reload(), 1500)
               } else {
-                throw new Error(verifyResponse.message || 'Payment verification failed');
+                throw new Error(verifyResponse.message || "Payment verification failed")
               }
             } catch (error) {
-              setError(`Payment verification failed: ${error.message}`);
-              toast.error('Payment verification failed');
+              setError(`Payment verification failed: ${error.message}`)
+              toast.error("Payment verification failed")
             }
           },
           prefill: {
-            name: order.shippingAddress?.fullName || '',
-            email: order.user?.email || '',
-            contact: order.shippingAddress?.phoneNumber || ''
+            name: order.shippingAddress?.fullName || "",
+            email: order.user?.email || "",
+            contact: order.shippingAddress?.phoneNumber || "",
           },
           theme: {
-            color: "#3B82F6"
+            color: "#3B82F6",
           },
           modal: {
-            ondismiss: function() {
-              setError('Payment cancelled by user');
-            }
-          }
-        };
+            ondismiss: () => {
+              setError("Payment cancelled by user")
+            },
+          },
+        }
   
         // Create new instance only if Razorpay is definitely loaded
-        if (typeof window.Razorpay === 'function') {
-          const rzp = new window.Razorpay(options);
-          rzp.on('payment.failed', function (response) {
-            setError(`Payment failed: ${response.error.description}`);
-            toast.error('Payment failed');
-          });
-          rzp.open();
+        if (typeof window.Razorpay === "function") {
+          const rzp = new window.Razorpay(options)
+          rzp.on("payment.failed", (response) => {
+            setError(`Payment failed: ${response.error.description}`)
+            toast.error("Payment failed")
+          })
+          rzp.open()
+        } else if (window.Razorpay) {
+          const rzp = new window.Razorpay(options)
+          rzp.on("payment.failed", (response) => {
+            setError(`Payment failed: ${response.error.description}`)
+            toast.error("Payment failed")
+          })
+          rzp.open()
         } else {
-          throw new Error('Payment system initialization failed');
+          throw new Error("Payment system initialization failed")
         }
       } catch (err) {
-        setError(`Failed to process repayment: ${err.message}`);
-        toast.error('Payment initialization failed');
+        setError(`Failed to process repayment: ${err.message}`)
+        toast.error("Payment initialization failed")
       }
-    };
+    }
   
-    const showRepayButton = 
-      ['card', 'upi', 'razorpay', 'wallet'].includes(order.paymentMethod?.toLowerCase()) && 
-      ['pending', 'failed'].includes(order.paymentStatus?.toLowerCase());
+    const showRepayButton =
+      ["card", "upi", "razorpay", "wallet"].includes(order.paymentMethod?.toLowerCase()) &&
+      ["pending", "failed"].includes(order.paymentStatus?.toLowerCase())
   
     return (
       <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -540,21 +570,19 @@ const OrderDetails = () => {
           <span className="text-gray-600">Original Amount</span>
           <span className="font-medium">₹{formatPrice(order.originalAmount)}</span>
         </div>
-        
+  
         {order.couponApplied && (
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Coupon Discount</span>
-            <span className="text-green-600 font-medium">
-              -₹{formatPrice(order.couponApplied.discountAmount)}
-            </span>
+            <span className="text-green-600 font-medium">-₹{formatPrice(order.couponApplied.discountAmount)}</span>
           </div>
         )}
-        
+  
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Current Amount</span>
           <span className="font-medium">₹{formatPrice(order.currentAmount)}</span>
         </div>
-        
+  
         {order.totalRefundAmount > 0 && (
           <div className="flex justify-between text-sm text-blue-600">
             <span>Total Refund Amount</span>
@@ -565,37 +593,39 @@ const OrderDetails = () => {
         <div className="flex flex-col space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Payment Status</span>
-            <span className={`font-medium ${
-              order.paymentStatus === 'completed' ? 'text-green-600' :
-              order.paymentStatus === 'failed' ? 'text-red-600' :
-              'text-yellow-600'
-            }`}>
-              {(order.paymentStatus || 'PENDING').toUpperCase()}
+            <span
+              className={`font-medium ${
+                order.paymentStatus === "completed"
+                  ? "text-green-600"
+                  : order.paymentStatus === "failed"
+                    ? "text-red-600"
+                    : "text-yellow-600"
+              }`}
+            >
+              {(order.paymentStatus || "PENDING").toUpperCase()}
             </span>
           </div>
-          
-          {error && (
-            <div className="text-red-600 text-sm mt-2">
-              {error}
-            </div>
-          )}
-          
+  
+          {error && <div className="text-red-600 text-sm mt-2">{error}</div>}
+  
           {showRepayButton && (
             <button
               onClick={handleRepayment}
               className="w-full mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md 
-                       transition-colors duration-200 flex items-center justify-center space-x-2
-                       disabled:bg-blue-400 disabled:cursor-not-allowed"
+                         transition-colors duration-200 flex items-center justify-center space-x-2
+                         disabled:bg-blue-400 disabled:cursor-not-allowed"
               disabled={!isRazorpayLoaded}
             >
               <CreditCard className="w-4 h-4" />
-              <span>{isRazorpayLoaded ? 'Retry Payment' : 'Loading payment system...'}</span>
+              <span>{isRazorpayLoaded ? "Retry Payment" : "Loading payment system..."}</span>
             </button>
           )}
         </div>
       </div>
-    );
-  };
+    )
+  }
+  
+  
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">

@@ -7,7 +7,7 @@ import QuantityLimitModal from "../../confirmationModal/QuantityLimitModal";
 import ProductCard from "../../authentication/user/ProductCard";
 import { fetchProducts } from "../../api/product";
 import { toast } from 'react-toastify';
-
+import SelectSizeModal from "../../confirmationModal/Selectedsizemodal";
 export default function ProductPage() {
   const { id } = useParams();
   const [product, setProduct] = useState({
@@ -33,6 +33,7 @@ export default function ProductPage() {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const [showSelectSizeModal, setShowSelectSizeModal] = useState(false);
   const imageRef = useRef(null);
 
   const MAX_QUANTITY = 5;
@@ -71,22 +72,66 @@ export default function ProductPage() {
 
   const fetchRelatedProducts = async () => {
     try {
+      console.log("Fetching related products...");
+      console.log("Current product category:", product.category);
+
       const response = await fetchProducts();
-      const filteredProducts = response.filter(
-        (p) => p._id !== id && p.category._id === product.category._id
-      );
-      setRelatedProducts(filteredProducts.slice(0, 4));
+      console.log("API Response:", response);
+
+      // Extract the products array from the response
+      const products = response?.activeProducts;
+
+      if (!products || !Array.isArray(products)) {
+        console.error("No products array found in response:", response);
+        return;
+      }
+
+      console.log("Processing products:", products);
+      console.log("Current product ID:", id);
+      console.log("Current product category ID:", product.category?._id);
+
+      const filteredProducts = products.filter(p => {
+        const isValid = p._id !== id &&
+          p.category &&
+          p.category._id === product.category._id;
+
+        console.log(`Checking product ${p.productName}:`, {
+          productId: p._id,
+          categoryId: p.category?._id,
+          currentCategoryId: product.category?._id,
+          isValid
+        });
+
+        return isValid;
+      });
+
+      console.log("Filtered products:", filteredProducts);
+      const slicedProducts = filteredProducts.slice(0, 4);
+      console.log("Final related products:", slicedProducts);
+
+      setRelatedProducts(slicedProducts);
     } catch (err) {
       console.error("Error fetching related products:", err);
     }
   };
 
+  // Update the useEffect to have proper dependencies and cleanup
   useEffect(() => {
-    if (product.category && product.category._id) {
-      fetchRelatedProducts();
-    }
-  }, [product.category, id]);
+    let mounted = true;
 
+    if (product?.category?._id) {
+      console.log("Category ID available, fetching related products...");
+      fetchRelatedProducts().then(() => {
+        if (!mounted) return;
+      });
+    } else {
+      console.log("Waiting for category ID...", product);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [product.category?._id, id]);
   useEffect(() => {
     console.log("Related Products:", relatedProducts);
   }, [relatedProducts]);
@@ -109,14 +154,7 @@ export default function ProductPage() {
 
   const handleAddToBag = async () => {
     if (!selectedSize) {
-      toast.error("Please select a size before adding to bag.", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
+      setShowSelectSizeModal(true); // Show the modal if no size is selected
       return;
     }
 
@@ -147,7 +185,6 @@ export default function ProductPage() {
         setIsErrorModalOpen(true);
       }
     } catch (err) {
-      console.log("Full error object:", err);
       if (err.message?.includes("Total quantity cannot exceed 5")) {
         setShowQuantityLimitModal(true);
       } else {
@@ -160,6 +197,7 @@ export default function ProductPage() {
       setIsLoading(false);
     }
   };
+
 
   const handleBuyNow = async () => {
     if (!selectedSize) {
@@ -267,9 +305,8 @@ export default function ProductPage() {
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
-                className={`border-2 rounded-md overflow-hidden ${
-                  selectedImage === index ? "border-black" : "border-gray-200"
-                }`}
+                className={`border-2 rounded-md overflow-hidden ${selectedImage === index ? "border-black" : "border-gray-200"
+                  }`}
               >
                 <img
                   src={image}
@@ -318,10 +355,9 @@ export default function ProductPage() {
                     disabled={!isAvailable}
                     className={`
                       relative px-4 py-2 border rounded-md
-                      ${
-                        selectedSize === sizeObj.size
-                          ? "border-black bg-black text-white"
-                          : !isAvailable
+                      ${selectedSize === sizeObj.size
+                        ? "border-black bg-black text-white"
+                        : !isAvailable
                           ? "border-gray-200 text-gray-400 cursor-not-allowed"
                           : "border-gray-300 hover:border-black"
                       }
@@ -389,34 +425,32 @@ export default function ProductPage() {
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-4">
             <button
-              className={`w-full py-4 border border-black rounded-md ${
-                !isOutOfStock
+              className={`w-full py-4 border border-black rounded-md ${!isOutOfStock
                   ? "bg-black text-white hover:bg-gray-900"
                   : "bg-gray-200 text-gray-500 cursor-not-allowed"
-              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
               onClick={handleAddToBag}
             >
               {isLoading
                 ? "ADDING..."
                 : isOutOfStock
-                ? "OUT OF STOCK"
-                : "ADD TO CART"}
+                  ? "OUT OF STOCK"
+                  : "ADD TO CART"}
             </button>
             <button
-              className={`w-full py-4 bg-black text-white rounded-md ${
-                !isOutOfStock
+              className={`w-full py-4 bg-black text-white rounded-md ${!isOutOfStock
                   ? "hover:bg-gray-900"
                   : "bg-gray-200 cursor-not-allowed"
-              } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
-              // onClick={handleBuyNow}
+            // onClick={handleBuyNow}
             >
               {isLoading
                 ? "PROCESSING..."
                 : isOutOfStock
-                ? "OUT OF STOCK"
-                : "BUY NOW"}
+                  ? "OUT OF STOCK"
+                  : "BUY NOW"}
             </button>
           </div>
         </div>
@@ -436,16 +470,20 @@ export default function ProductPage() {
         type="error"
         message={modalMessage}
       />
+      <SelectSizeModal
+        isOpen={showSelectSizeModal}
+        onClose={() => setShowSelectSizeModal(false)}
+      />
 
       <QuantityLimitModal
         isOpen
-={showQuantityLimitModal}
+        ={showQuantityLimitModal}
         onClose={() => setShowQuantityLimitModal(false)}
         maxQuantity={MAX_QUANTITY}
       />
 
       {/* Related Products */}
-      {relatedProducts.length > 0 && (
+      {relatedProducts.length > 0 ? (
         <div className="mt-16 bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 rounded-lg shadow-inner">
           <div className="max-w-7xl mx-auto">
             <h2 className="text-3xl font-extrabold text-gray-900 mb-8 text-center">
@@ -471,6 +509,10 @@ export default function ProductPage() {
               ))}
             </div>
           </div>
+        </div>
+      ) : (
+        <div className="mt-16 text-center text-gray-500">
+          No related products found in the same category
         </div>
       )}
     </div>

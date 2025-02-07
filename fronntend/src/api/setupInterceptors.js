@@ -2,6 +2,7 @@ import Cookies from "js-cookie";
 import { axiosInstance } from "/src/api/axiosConfig.js";
 import { toast } from "sonner";
 
+// In setupInterceptors.js, modify the request interceptor:
 const attachRequestInterceptor = (axiosCustomInstance) => {
     axiosCustomInstance.interceptors.request.use(
         (config) => {
@@ -12,11 +13,17 @@ const attachRequestInterceptor = (axiosCustomInstance) => {
             const adminAccessToken = Cookies.get("admin_access_token");
             const userAccessToken = Cookies.get("user_access_token");
 
+            // Add these debug logs
+            console.log("Admin token:", adminAccessToken);
+            console.log("User token:", userAccessToken);
+            
             const token = adminAccessToken || userAccessToken || null;
-            console.log("TOKEN", token);
+            console.log("Selected token:", token);
 
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
+                // Add this debug log
+                console.log("Final Authorization header:", config.headers.Authorization);
             }
             return config;
         },

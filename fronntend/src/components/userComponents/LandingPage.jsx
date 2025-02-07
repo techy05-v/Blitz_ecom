@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
-
-import { Link ,useNavigate } from "react-router-dom";
-import ProductCard from "./ProductCard";
+import { Link } from "react-router-dom";
+import ProductCard from "../../authentication/user/ProductCard";
 import { axiosInstance } from "../../api/axiosConfig";
 import banner from "../../assets/ujfhhhhhhhhhhhhhhhhhhhhhep.jpg";
 import banner2 from "../../assets/b1.jpg";
@@ -9,39 +8,40 @@ import banner3 from "../../assets/b2.jpg";
 import banner4 from "../../assets/b3.webp";
 import banner5 from "../../assets/b4.jpg";
 import banner6 from "../../assets/b5.webp";
-import ImageCarousel from "./Layout/ImageCarousel";
-
+import ImageCarousel from "../../authentication/user/Layout/ImageCarousel";
+import axios from 'axios'; 
 const INITIAL_PRODUCT_COUNT = 4;
-
-const HomePage = () => {
-  const navigate = useNavigate()
+import { fetchPublicProducts } from "../../api/product/"; // Update the path
+const isAuthenticated = () => {
+  const userToken = Cookies.get("user_access_token");
+  return !!userToken;
+};
+const LandingPage= () => {
   const [products, setProducts] = useState([]);
   const [visibleProducts, setVisibleProducts] = useState(INITIAL_PRODUCT_COUNT);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const bannerImages = ["https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max", banner2, "https://sbprostorage02v2.blob.core.windows.net/media/138276/speedportal-tab-min.jpg"];
-  const productImages = ["https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max", banner2, "https://sbprostorage02v2.blob.core.windows.net/media/138276/speedportal-tab-min.jpg"];
+  const bannerImages = ["https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max", banner2, "https://pbs.twimg.com/media/EHtzxsfWoAAmESM.jpg"];
+  const productImages = ["https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fimage%2F2019%2F10%2Fnew-balance-football-tekela-furon-newcolorway-tw.jpg?w=960&cbr=1&q=90&fit=max", banner2, "https://pbs.twimg.com/media/EHtzxsfWoAAmESM.jpg"];
   const [wishlistItems, setWishlistItems] = useState([]);
- 
+
   useEffect(() => {
-    const fetchProducts = async () => {
+    const loadProducts = async () => {
       setIsLoading(true);
       try {
-        const response = await axiosInstance.get("/user/products");
-        const productsData = Array.isArray(response.data)
-          ? response.data
-          : response.data?.activeProducts || [];
-        setProducts(productsData);
+        const { activeProducts } = await fetchPublicProducts(INITIAL_PRODUCT_COUNT);
+        setProducts(activeProducts);
         setError(null);
       } catch (err) {
-        setError(err.message || "Failed to fetch products");
+        console.error('Error loading products:', err);
+        setError("Failed to load products");
         setProducts([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProducts();
+    loadProducts();
   }, []);
 
   const loadMoreProducts = () => {
@@ -75,8 +75,7 @@ const HomePage = () => {
                 Experience unparalleled comfort and performance with our latest
                 innovation in running technology.
               </p>
-              <button className="bg-black text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-lg hover:from-black hover:to-cyan-600 transition duration-300 ease-in-out transform hover:scale-105"
-              onClick={()=>navigate("/user/shop")}>
+              <button className="bg-black text-white py-3 px-6 rounded-lg text-lg font-semibold shadow-lg hover:from-black hover:to-cyan-600 transition duration-300 ease-in-out transform hover:scale-105">
                 Shop Now
               </button>
             </div>
@@ -201,8 +200,12 @@ const HomePage = () => {
                   images={product.images || []}
                   discountPercent={product.discountPercent || 0}
                   availableSizes={product.availableSizes} 
-                  isInWishlist={wishlistItems.includes(product.id)}
-                  onWishlistUpdate={handleWishlistUpdate}
+                  isInWishlist={false}
+                  onWishlistUpdate={(id, isWishlisted) => {
+                    if (isAuthenticated()) {
+                      handleWishlistUpdate(id, isWishlisted);
+                    }
+                  }}
                 />
                 ))}
               </div>
@@ -253,5 +256,5 @@ const HomePage = () => {
   );
 };
 
-export default HomePage;
+export default LandingPage;
 

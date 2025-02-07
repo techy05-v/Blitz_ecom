@@ -1,4 +1,5 @@
 import { axiosInstance } from '../../api/axiosConfig';
+import Cookies from 'js-cookie';
 
 const WISHLIST_API = {
   ADD: '/user/add',
@@ -9,9 +10,15 @@ const WISHLIST_API = {
 
 export const wishlistAPI = {
   addToWishlist: async (productId) => {
+    // Check if user is authenticated
+    const token = Cookies.get('user_access_token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const response = await axiosInstance.post(WISHLIST_API.ADD, {
-        productId: productId // Send in the format expected by backend
+        productId: productId
       });
       
       if (!response.data.success) {
@@ -28,6 +35,12 @@ export const wishlistAPI = {
   },
 
   removeFromWishlist: async (productId) => {
+    // Check if user is authenticated
+    const token = Cookies.get('user_access_token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const response = await axiosInstance.delete(`${WISHLIST_API.REMOVE}/${productId}`);
       
@@ -45,6 +58,12 @@ export const wishlistAPI = {
   },
 
   getWishlist: async () => {
+    // Check if user is authenticated
+    const token = Cookies.get('user_access_token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const response = await axiosInstance.get(WISHLIST_API.GET);
       
@@ -62,6 +81,12 @@ export const wishlistAPI = {
   },
 
   clearWishlist: async () => {
+    // Check if user is authenticated
+    const token = Cookies.get('user_access_token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+
     try {
       const response = await axiosInstance.delete(WISHLIST_API.CLEAR);
       

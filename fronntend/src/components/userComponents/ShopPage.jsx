@@ -1,8 +1,30 @@
 import React, { useState, useEffect } from "react";
-import { Filter, Loader, Search } from 'lucide-react';
+import { Filter, Loader, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocation, useNavigate } from "react-router-dom";
 import ProductCard from "../../authentication/user/ProductCard";
 import { fetchProducts, fetchCategories } from "../../api/product";
+
+const PaginationButton = ({ children, onClick, disabled, active }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`
+      px-3 py-1 rounded-md text-sm font-medium
+      ${active 
+        ? 'bg-black text-white' 
+        : 'bg-white text-gray-700 hover:bg-gray-50'
+      }
+      ${disabled 
+        ? 'opacity-50 cursor-not-allowed' 
+        : 'hover:bg-gray-100'
+      }
+      border border-gray-300 mx-1
+      transition-colors duration-200
+    `}
+  >
+    {children}
+  </button>
+);
 
 export default function ShopPage() {
   const [products, setProducts] = useState([]);
@@ -12,48 +34,58 @@ export default function ShopPage() {
   const [selectedCategories, setSelectedCategories] = useState(new Set());
   const [sortOrder, setSortOrder] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [wishlistItems,setWishlistItems]=useState("")
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalProducts: 0,
+    productsPerPage: 12
+  });
+  
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Parse search query from URL on component mount
+  // Parse URL parameters on mount and when URL changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const searchParam = params.get('search');
-    if (searchParam) {
-      setSearchQuery(searchParam);
-    }
+    const pageParam = params.get('page');
+    if (searchParam) setSearchQuery(searchParam);
+    if (pageParam) setPagination(prev => ({ ...prev, currentPage: parseInt(pageParam) }));
   }, [location.search]);
 
+  // Load products and categories
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
         setError(null);
+        
         let backendSortOrder = "";
         switch(sortOrder) {
-          case "Price: Low to High":
-            backendSortOrder = "Low-High";
+          case "Price: Low to High": 
+            backendSortOrder = "Low-High"; 
             break;
-          case "Price: High to Low":
-            backendSortOrder = "High-Low";
+          case "Price: High to Low": 
+            backendSortOrder = "High-Low"; 
             break;
-          case "Name: A to Z":
-            backendSortOrder = "A-Z";
+          case "Name: A to Z": 
+            backendSortOrder = "A-Z"; 
             break;
-          case "Name: Z to A":
-            backendSortOrder = "Z-A";
+          case "Name: Z to A": 
+            backendSortOrder = "Z-A"; 
             break;
-          default:
+          default: 
             backendSortOrder = "";
         }
         
         const [productsData, categoriesData] = await Promise.all([
-          fetchProducts(backendSortOrder, searchQuery),
+          fetchProducts(backendSortOrder, searchQuery, pagination.currentPage, pagination.productsPerPage),
           fetchCategories(),
         ]);
         
-        setProducts(Array.isArray(productsData) ? productsData : []);
+        setProducts(Array.isArray(productsData.activeProducts) ? productsData.activeProducts : []);
+        setPagination(productsData.pagination);
         setCategories(Array.isArray(categoriesData) ? categoriesData : []);
       } catch (err) {
         console.error('Complete Load Error:', err);
@@ -66,7 +98,7 @@ export default function ShopPage() {
     }
   
     loadData();
-  }, [sortOrder, searchQuery]);
+  }, [sortOrder, searchQuery, pagination.currentPage]);
 
   const handleCategoryChange = (categoryId) => {
     setSelectedCategories((prev) => {
@@ -83,12 +115,15 @@ export default function ShopPage() {
   const handleSearch = (e) => {
     e.preventDefault();
     const trimmedQuery = searchQuery.trim();
+    const params = new URLSearchParams();
+    
     if (trimmedQuery) {
-      navigate(`/user/shop?search=${encodeURIComponent(trimmedQuery)}`);
-    } else {
-      navigate('/user/shop');
-      setSearchQuery('');
+      params.set('search', trimmedQuery);
     }
+    
+    // Reset to first page on new search
+    params.set('page', '1');
+    navigate(`/user/shop?${params.toString()}`);
   };
 
   const clearSearch = () => {
@@ -96,14 +131,80 @@ export default function ShopPage() {
     navigate('/user/shop');
   };
 
-  const handleWishlistUpdate=async(productId,isWishlisted)=>{
-    if(isWishlisted){
-      setWishlistItems(prev=>[...prev,productId])
+  const handlePageChange = (newPage) => {
+    const params = new URLSearchParams(location.search);
+    params.set('page', newPage);
+    navigate(`${location.pathname}?${params.toString()}`);
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleWishlistUpdate = async (productId, isWishlisted) => {
+    if (isWishlisted) {
+      setWishlistItems(prev => [...prev, productId]);
+    } else {
+      setWishlistItems(prev => prev.filter(id => id !== productId));
     }
-    else[
-      setWishlistItems(prev=>prev.filter(id=>id!==productId))
-    ]
-  }
+  };
+
+  const renderPagination = () => {
+    const { currentPage, totalPages } = pagination;
+    const pages = [];
+    
+    // Always show first page
+    pages.push(1);
+    
+    // Calculate range of pages to show
+    let start = Math.max(2, currentPage - 2);
+    let end = Math.min(totalPages - 1, currentPage + 2);
+    
+    // Add ellipsis after first page if needed
+    if (start > 2) pages.push('...');
+    
+    // Add middle pages
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    
+    // Add ellipsis before last page if needed
+    if (end < totalPages - 1) pages.push('...');
+    
+    // Add last page if there's more than one page
+    if (totalPages > 1) pages.push(totalPages);
+
+    return (
+      <div className="flex items-center justify-center mt-8 space-x-1">
+        <PaginationButton
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </PaginationButton>
+
+        {pages.map((page, index) => (
+          <React.Fragment key={index}>
+            {page === '...' ? (
+              <span className="px-3 py-1">...</span>
+            ) : (
+              <PaginationButton
+                onClick={() => handlePageChange(page)}
+                active={page === currentPage}
+              >
+                {page}
+              </PaginationButton>
+            )}
+          </React.Fragment>
+        ))}
+
+        <PaginationButton
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </PaginationButton>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -144,8 +245,6 @@ export default function ShopPage() {
           <aside className="w-full md:w-64 shrink-0">
             <div className="rounded-lg bg-white p-6 shadow-sm">
               <h2 className="mb-4 text-lg font-semibold">Filters</h2>
-
-              {/* Search Bar */}
 
               {/* Categories */}
               <div className="mb-6">
@@ -203,11 +302,14 @@ export default function ShopPage() {
                   images={product.images || []}
                   discountPercent={product.discountPercent || 0}
                   availableSizes={product.availableSizes} 
-                  isInWishlist={wishlistItems.includes(product.id)}
+                  isInWishlist={wishlistItems.includes(product._id)}
                   onWishlistUpdate={handleWishlistUpdate}
                 />
               ))}
             </div>
+            
+            {/* Pagination */}
+            {renderPagination()}
           </div>
         </div>
       </div>

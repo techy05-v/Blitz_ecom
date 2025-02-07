@@ -22,7 +22,7 @@ const WalletDashboard = () => {
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/user/wallet/details?page=${page}&limit=${pagination.limit}`);
-      
+      console.log("bjvdvfghd",response.data)
       if (response.data.success) {
         setWalletData({
           balance: response.data.data.balance,

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
 } from 'recharts';
-import {axiosInstance} from '../../api/axiosConfig';
+import { axiosInstance } from '../../api/axiosConfig';
 
 const StatCard = ({ icon, title, value, change, bgColor }) => (
   <div className={`${bgColor} rounded-xl shadow-lg text-white hover:scale-105 transition-transform duration-200`}>
@@ -34,7 +34,6 @@ const StatCard = ({ icon, title, value, change, bgColor }) => (
 );
 
 const SalesChart = ({ salesData }) => {
-  // Transform best selling products into chart-friendly format
   const chartData = salesData.bestSellingProducts?.map(product => ({
     name: product.productName,
     sales: product.totalSales,
@@ -49,11 +48,11 @@ const SalesChart = ({ salesData }) => {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" />
           <YAxis />
-          <Tooltip 
+          <Tooltip
             formatter={(value, name, props) => {
               const { payload } = props;
-              return name === 'sales' 
-                ? [`$${value.toLocaleString()}`, 'Total Revenue'] 
+              return name === 'sales'
+                ? [`₹${value.toLocaleString()}`, 'Total Revenue']
                 : [`${value}`, 'Quantity Sold'];
             }}
           />
@@ -76,13 +75,13 @@ function Dashboard() {
       paymentMethodBreakdown: []
     },
     bestSellingProducts: [],
+    bestSellingCategories: [],
     timePeriod: 'month'
   });
   const [timePeriod, setTimePeriod] = useState('month');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch sales report
   useEffect(() => {
     const fetchSalesReport = async () => {
       try {
@@ -90,21 +89,22 @@ function Dashboard() {
         const response = await axiosInstance.get('/admin/report', {
           params: { timePeriod }
         });
-        
-        console.log('Full Response:', response);
-        console.log('Response Data:', JSON.stringify(response.data, null, 2));
-        
+  
         if (response.data && response.data.salesSummary) {
+          console.log('API Response:', response.data); // Debug log
+          if (!response.data.bestSellingCategories) {
+            console.warn('Best selling categories data is missing from the response');
+          }
           setSalesReport(response.data);
         } else {
-          console.error('Unexpected response format');
+          console.error('Unexpected response format:', response.data);
           setError('Invalid data format received');
         }
       } catch (error) {
         console.error('Fetch Error:', {
           message: error.message,
           response: error.response,
-          status: error.response?.status
+          data: error.response?.data
         });
         setError(error.message || 'Failed to fetch sales report');
       } finally {
@@ -115,7 +115,6 @@ function Dashboard() {
     fetchSalesReport();
   }, [timePeriod]);
 
-  // Export report to Excel
   const handleExportExcel = async () => {
     try {
       const response = await axiosInstance.get('/admin/export/excel', {
@@ -123,8 +122,8 @@ function Dashboard() {
         params: { timePeriod }
       });
 
-      const blob = new Blob([response.data], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
@@ -135,7 +134,6 @@ function Dashboard() {
     }
   };
 
-  // Export report to PDF
   const handleExportPDF = async () => {
     try {
       const response = await axiosInstance.get('/admin/export/pdf', {
@@ -153,7 +151,6 @@ function Dashboard() {
     }
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -167,8 +164,7 @@ function Dashboard() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
         <div className="space-x-4">
-          {/* Time Period Selection */}
-          <select 
+          <select
             value={timePeriod}
             onChange={(e) => setTimePeriod(e.target.value)}
             className="mr-4 px-3 py-2 border rounded"
@@ -178,13 +174,13 @@ function Dashboard() {
             <option value="year">Last Year</option>
           </select>
 
-          <button 
+          <button
             onClick={handleExportExcel}
             className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
           >
             Export Excel
           </button>
-          <button 
+          <button
             onClick={handleExportPDF}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
           >
@@ -192,46 +188,81 @@ function Dashboard() {
           </button>
         </div>
       </div>
-      
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-          Error: {JSON.stringify(error)}
+          Error: {error}
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <StatCard 
+        <StatCard
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>}
-          title="Total Orders" 
+          title="Total Orders"
           value={salesReport.salesSummary.totalOrders}
           change={2.5}
           bgColor="bg-gradient-to-r from-purple-500 to-purple-600"
         />
-        <StatCard 
+        <StatCard
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-          title="Total Revenue" 
-          value={`${salesReport.salesSummary.totalSalesAmount.toFixed(2)}`}
+          title="Total Revenue"
+          value={`₹${salesReport.salesSummary.totalSalesAmount.toFixed(2)}`}
           change={-1.5}
           bgColor="bg-gradient-to-r from-blue-500 to-blue-600"
         />
-        <StatCard 
+        <StatCard
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
-          title="Total Discount" 
-          value={`${salesReport.salesSummary.totalDiscountAmount.toFixed(2)}`}
+          title="Total Discount"
+          value={`₹${salesReport.salesSummary.totalDiscountAmount.toFixed(2)}`}
           change={5.2}
           bgColor="bg-gradient-to-r from-green-500 to-green-600"
         />
-        <StatCard 
+        <StatCard
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
-          title="Original Amount" 
-          value={`${salesReport.salesSummary.totalOriginalAmount.toFixed(2)}`}
+          title="Original Amount"
+          value={`₹${salesReport.salesSummary.totalOriginalAmount.toFixed(2)}`}
           change={3.1}
           bgColor="bg-gradient-to-r from-pink-500 to-pink-600"
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        {/* Existing components */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-xl font-bold mb-4">Best Selling Categories</h2>
+          {salesReport.bestSellingCategories?.length > 0 ? (
+            salesReport.bestSellingCategories.map((category, index) => (
+              <div key={category._id || index} className="flex justify-between mb-2 border-b pb-2">
+                <div>
+                  <span className="font-medium">{category.categoryName}</span>
+                  <span className="text-sm text-gray-500 block">
+                    Products: {category.totalProducts}
+                    <span className="ml-2">Sold: {category.totalQuantitySold}</span>
+                  </span>
+                </div>
+                <span className="font-bold text-green-600">
+                  ₹{category.totalSales.toFixed(2)}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-gray-500 text-center py-4">
+              No category data available
+            </div>
+          )}
+        </div>
+
+        {/* <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-xl font-bold mb-4">Payment Methods</h2>
+          {salesReport.salesSummary.paymentMethodBreakdown?.map((payment, index) => (
+            <div key={index} className="flex justify-between mb-2 border-b pb-2">
+              <span className="font-medium capitalize">{payment.method}</span>
+              <span className="font-bold text-blue-600">
+                ₹{payment.amount.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div> */}
+
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-xl font-bold mb-4">Best Selling Products</h2>
           {salesReport.bestSellingProducts?.map((product, index) => (
@@ -243,26 +274,12 @@ function Dashboard() {
                 </span>
               </div>
               <span className="font-bold text-green-600">
-              ₹{product.totalSales.toFixed(2)}
+                ₹{product.totalSales.toFixed(2)}
               </span>
             </div>
           ))}
         </div>
 
-        {/* Payment Method Breakdown */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-4">Payment Methods</h2>
-          {salesReport.salesSummary.paymentMethodBreakdown?.map((payment, index) => (
-            <div key={index} className="flex justify-between mb-2 border-b pb-2">
-              <span className="font-medium capitalize">{payment.method}</span>
-              <span className="font-bold text-blue-600">
-              ₹{payment.amount.toFixed(2)}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* New Sales Chart */}
         <SalesChart salesData={salesReport} />
       </div>
     </div>

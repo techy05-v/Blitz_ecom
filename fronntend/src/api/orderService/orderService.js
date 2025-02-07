@@ -2,6 +2,7 @@ import { axiosInstance } from "../../api/axiosConfig";
 
 const orderService = {
     createOrder: async (orderData) => {
+        console.log(orderData)
         try {
             const response = await axiosInstance.post('/user/order/create', orderData);
             return response.data;
