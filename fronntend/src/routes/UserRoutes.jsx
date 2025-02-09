@@ -14,7 +14,7 @@ import ResetPassword from "../pages/resetPassword";
 import UserDashboard from "../components/userComponents/UserDashboard";
 import ShoppingCart from "../components/userComponents/ShoppingCart";
 import Wishlist from "../components/userComponents/Wishlist";
-import Wallet from "../components/userComponents/WalletDashboard";
+import Wallet from "../components/userComponents/Wallet";
 import Address from "../components/userComponents/Address";
 import AccountDetails from "../components/userComponents/AccountDetails";
 import OrderHistory from "../components/userComponents/OrderHistory";
