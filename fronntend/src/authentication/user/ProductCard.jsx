@@ -6,6 +6,7 @@ import Modal from "../../confirmationModal/Modal"
 import Cookies from 'js-cookie'
 import { useNavigate } from "react-router-dom"
 import { wishlistAPI } from '../../api/wishlistServices/wishlistService'
+import { toast } from 'sonner'
 
 const ProductCard = ({
   id,
@@ -51,6 +52,7 @@ const ProductCard = ({
       setLocalIsInWishlist(isItemInWishlist);
     } catch (error) {
       console.error("Error checking wishlist status:", error);
+      toast.error("Failed to check wishlist status");
     }
   };
 
@@ -60,12 +62,8 @@ const ProductCard = ({
 
   const handleProductClick = (e) => {
     e.preventDefault();
-    if (!isAuthenticated()) {
-      setModalType("view");
-      setIsModalOpen(true);
-    } else {
-      navigate(`/user/product/${id}`);
-    }
+    // Remove authentication check and directly navigate to product page
+    navigate(`/user/product/${id}`);
   };
 
   const handleWishlistClick = async (e) => {
@@ -84,17 +82,31 @@ const ProductCard = ({
       setIsUpdating(true);
       
       if (localIsInWishlist) {
+        const loadingToast = toast.loading("Removing from wishlist...");
+        
         await wishlistAPI.removeFromWishlist(id);
         setLocalIsInWishlist(false);
         onWishlistUpdate(id, false);
+        
+        toast.dismiss(loadingToast);
+        toast.success(`${name || 'Product'} removed from wishlist`);
       } else {
+        const loadingToast = toast.loading("Adding to wishlist...");
+        
         await wishlistAPI.addToWishlist(id);
         setLocalIsInWishlist(true);
         onWishlistUpdate(id, true);
+        
+        toast.dismiss(loadingToast);
+        toast.success(`${name || 'Product'} added to wishlist`);
       }
     } catch (error) {
       console.error("Wishlist operation failed:", error);
-      // Revert local state if operation failed
+      toast.error(
+        error.response?.data?.message || 
+        error.message || 
+        "Failed to update wishlist. Please try again."
+      );
       setLocalIsInWishlist(!localIsInWishlist);
     } finally {
       setIsUpdating(false);
@@ -222,33 +234,25 @@ const ProductCard = ({
         </button>
       </div>
 
-      {/* Modal - Only shown for unauthenticated users */}
-      {!isAuthenticated() && (
-        <Modal isOpen={isModalOpen} onClose={closeModal}>
-          <h2 className="text-2xl font-bold mb-4">
-            {modalType === "view" ? "View Product" : "Add to Wishlist"}
-          </h2>
-          <p className="mb-6">
-            {modalType === "view"
-              ? "Please log in to view product details."
-              : "Please log in to add items to your wishlist."}
-          </p>
-          <div className="flex justify-between">
-            <button
-              onClick={navigateToLogin}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-            >
-              Log In
-            </button>
-            <button
-              onClick={closeModal}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
-      )}
+      {/* Modal - Only shown for unauthenticated users trying to use wishlist */}
+      <Modal isOpen={isModalOpen} onClose={closeModal}>
+        <h2 className="text-2xl font-bold mb-4">Add to Wishlist</h2>
+        <p className="mb-6">Please log in to add items to your wishlist.</p>
+        <div className="flex justify-between">
+          <button
+            onClick={navigateToLogin}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+          >
+            Log In
+          </button>
+          <button
+            onClick={closeModal}
+            className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };

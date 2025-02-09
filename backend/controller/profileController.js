@@ -96,7 +96,7 @@ const updateProfile = async (req, res) => {
         };
 
         const user = await User.findByIdAndUpdate(
-            req.user.data.id,
+            req.user.data._id,
             { $set: updateData },
             { new: true }
         ).select("-password -resetToken -resetTokenExpiry");

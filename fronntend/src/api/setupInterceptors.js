@@ -60,7 +60,7 @@ const attachResponseInterceptor = (axiosCustomInstance, refreshEndpoint) => {
                         if (access_token) {
                             // Set the new token in cookies
                             Cookies.set(`${role}_access_token`, access_token, {
-                                expires: 13 / (24 * 60), // 13 minutes
+                                expires: 50 / (24 * 60), // 50 minutes
                             });
 
                             // Update the original request with new token

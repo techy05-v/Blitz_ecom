@@ -86,7 +86,7 @@ userRoute.post("/return/request",verifyUser,requestReturn)
 // wallet 
 
 userRoute.get('/wallet/details', verifyUser, getWalletDetails);
-userRoute.post('/wallet/use', useWalletBalance);
+userRoute.post('/wallet/use',verifyUser, useWalletBalance);
 
 userRoute.get("/orders/:orderId/invoice",verifyUser,downloadInvoice)
 userRoute.post('/orders/:orderId/repay', verifyUser, repayOrder);

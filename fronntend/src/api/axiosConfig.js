@@ -65,6 +65,23 @@ const createAxiosInstance = (contentType = "application/json") => {
             try {
                 const originalRequest = error.config;
                 
+                // User blocked handling
+                if (error.response?.status === 401 && error.response?.data?.message === "User Blocked.") {
+                    // Clear all auth tokens
+                    Cookies.remove("admin_access_token");
+                    Cookies.remove("user_access_token");
+                    
+                    // Show blocked message
+                    toast.warning("You have been blocked by an admin.");
+                    
+                    // Force logout and redirect with delay
+                    setTimeout(() => {
+                        window.location.href = "/user/login";
+                    }, 1500); // Give time for toast to be visible
+                    
+                    return Promise.reject(error);
+                }
+
                 // Token expired handling
                 if (
                     error.response?.status === 401 &&
@@ -99,13 +116,6 @@ const createAxiosInstance = (contentType = "application/json") => {
                         handleAuthError();
                         return Promise.reject(refreshError);
                     }
-                }
-
-                // User blocked
-                if (error.response?.status === 401 && error.response?.data?.message === "User Blocked.") {
-                    toast.warning("You have been blocked by an admin.");
-                    handleAuthError("user");
-                    return Promise.reject(error);
                 }
 
                 // No token or invalid token

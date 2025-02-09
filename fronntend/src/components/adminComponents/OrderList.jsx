@@ -24,6 +24,7 @@ const OrderList = () => {
         params: { page, limit: 10 } 
       });
       const ordersData = response.data;
+      console.log(ordersData)
       if (ordersData && Array.isArray(ordersData.orders)) {
         setOrders(ordersData.orders);
         setTotalPages(ordersData.totalPages || 1);
@@ -232,7 +233,7 @@ const OrderList = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm font-medium text-gray-900">
-                            ₹{(order.currentAmount || 0).toFixed(2)}
+                            ₹{(order.finalAmount || 0).toFixed(2)}
                           </span>
                         </td>
                         <td className="px-6 py-4">

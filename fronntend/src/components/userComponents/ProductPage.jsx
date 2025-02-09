@@ -8,6 +8,8 @@ import ProductCard from "../../authentication/user/ProductCard";
 import { fetchProducts } from "../../api/product";
 import { toast } from 'react-toastify';
 import SelectSizeModal from "../../confirmationModal/Selectedsizemodal";
+import Modal from "../../confirmationModal/Modal";
+import Cookies from 'js-cookie'
 export default function ProductPage() {
   const { id } = useParams();
   const [product, setProduct] = useState({
@@ -34,11 +36,15 @@ export default function ProductPage() {
   const [modalMessage, setModalMessage] = useState("");
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [showSelectSizeModal, setShowSelectSizeModal] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userAccessToken, setUserAccessToken] = useState(null);
   const imageRef = useRef(null);
 
   const MAX_QUANTITY = 5;
 
   useEffect(() => {
+    const token = Cookies.get("user_access_token");
+    setUserAccessToken(token);
     const fetchProduct = async () => {
       try {
         const response = await axiosInstance.get(`/user/product/${id}`);
@@ -52,7 +58,9 @@ export default function ProductPage() {
 
     fetchProduct();
   }, [id]);
-
+  const isAuthenticated = () => {
+    return !!userAccessToken;
+  };
   const checkCartQuantity = async (productId, size) => {
     try {
       const response = await cartService.getCartItems();
@@ -153,6 +161,10 @@ export default function ProductPage() {
   };
 
   const handleAddToBag = async () => {
+    if (!isAuthenticated()) {
+      setIsModalOpen(true);
+      return;
+    }
     if (!selectedSize) {
       setShowSelectSizeModal(true); // Show the modal if no size is selected
       return;
@@ -270,6 +282,13 @@ export default function ProductPage() {
   const isOutOfStock = !product.availableSizes.some(
     (size) => size.quantity > 0
   );
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+  const navigateToLogin = () => {
+    navigate("/login");
+    closeModal();
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -426,8 +445,8 @@ export default function ProductPage() {
           <div className="grid grid-cols-2 gap-4">
             <button
               className={`w-full py-4 border border-black rounded-md ${!isOutOfStock
-                  ? "bg-black text-white hover:bg-gray-900"
-                  : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                ? "bg-black text-white hover:bg-gray-900"
+                : "bg-gray-200 text-gray-500 cursor-not-allowed"
                 } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
               onClick={handleAddToBag}
@@ -440,8 +459,8 @@ export default function ProductPage() {
             </button>
             <button
               className={`w-full py-4 bg-black text-white rounded-md ${!isOutOfStock
-                  ? "hover:bg-gray-900"
-                  : "bg-gray-200 cursor-not-allowed"
+                ? "hover:bg-gray-900"
+                : "bg-gray-200 cursor-not-allowed"
                 } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={isOutOfStock || isLoading}
             // onClick={handleBuyNow}
@@ -463,6 +482,24 @@ export default function ProductPage() {
         type="success"
         message={modalMessage}
       />
+      <Modal isOpen={isModalOpen} onClose={closeModal}>
+        <h2 className="text-2xl font-bold mb-4">Add to Wishlist</h2>
+        <p className="mb-6">Please log in to add items to your wishlist.</p>
+        <div className="flex justify-between">
+          <button
+            onClick={navigateToLogin}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+          >
+            Log In
+          </button>
+          <button
+            onClick={closeModal}
+            className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
 
       <AnimatedCartModal
         isOpen={isErrorModalOpen}

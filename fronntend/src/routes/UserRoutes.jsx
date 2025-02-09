@@ -39,6 +39,7 @@ const UserRoutes = () => {
         <Route path="shop" element={<ShopPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="contact" element={<ContactPage />} />
+        <Route path="cart" element={<ShoppingCart />} />
         
         {/* Authentication Routes */}
         <Route
@@ -83,7 +84,6 @@ const UserRoutes = () => {
           }
         >
           <Route path="dashboard" element={<UserDashboard />} />
-          <Route path="cart" element={<ShoppingCart />} />
           <Route path="wishlist" element={<Wishlist />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="address" element={<Address />} />
