@@ -1,5 +1,5 @@
 const express = require('express');
-const router = express.Router();
+const   router = express.Router();
 const {verifyAdmin} =require("../middleware/auth.js")
 const { 
     fetchUserDetails, 
@@ -59,7 +59,7 @@ router.post("/adminlogout",  adminLogout);
 router.patch('/users/:userId/toggle-block', verifyAdmin, toggleUserBlock);
 // Product routes
 
-
+  
 // Category routes
 router.get('/categories',verifyAdmin, getAllCategories);
 router.get('/categoryById/:id',verifyAdmin, getCategoryById);
