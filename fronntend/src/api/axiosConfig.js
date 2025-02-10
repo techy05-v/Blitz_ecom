@@ -3,7 +3,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
 
-const baseURL = import.meta.env.VITE_BASE_URL || "http://localhost:3000";
+const baseURL = import.meta.env.VITE_BASE_URL || "https://www.vishnulife.bond";
 
 // Debug logger
 const debugLog = (context, data) => {
