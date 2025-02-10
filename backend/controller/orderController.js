@@ -10,15 +10,29 @@ dotenv.config();
 const Razorpay = require("razorpay")
 const crypto = require("crypto");
 const { useWalletBalance } = require('./walletController');
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+console.log('Checking Razorpay credentials:');
+console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID);
+console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET);
+
+// const razorpay = new Razorpay({
+//     key_id: process.env.RAZORPAY_KEY_ID,
+//     key_secret: process.env.RAZORPAY_KEY_SECRET
+// });
+const ProductSchema = require('../model/productSchema');
+const { validateCoupon, markCouponAsUsed } = require('../controller/couponController');
+const Coupon = require("../model/couponSchema");
+const Wallet = require("../model/walletSchema");
+const Order = require("../model/orderSchema"); // Make sure to add this
+const Cart = require("../model/cartSchema"); // Make sure to add this
+const Razorpay = require("razorpay");
+const { useWalletBalance } = require('./walletController');
+
 const createOrder = async (req, res) => {
     try {
-        const { shippingAddressId, paymentMethod, orderNotes, appliedCouponId,tax,shipping } = req.body;
+        const { shippingAddressId, paymentMethod, orderNotes, appliedCouponId, tax, shipping } = req.body;
         const userId = req.user.data._id;
-        console.log("uuuuuuuuu",userId)
+        console.log("uuuuuuuuu", userId);
+
         // Get user's cart with populated product details
         const cart = await Cart.findOne({ user: userId })
             .populate({
@@ -112,6 +126,7 @@ const createOrder = async (req, res) => {
         const taxAmount = parseFloat(tax) || 0;
         const shippingAmount = parseFloat(shipping) || 0;
         const finalAmount = currentAmount + taxAmount + shippingAmount;
+        
         if (paymentMethod === 'cash_on_delivery' && finalAmount > 1000) {
             return res.status(400).json({
                 success: false,
@@ -132,8 +147,8 @@ const createOrder = async (req, res) => {
             shippingAddress: shippingAddressId,
             originalAmount,
             initialTotalAmount: originalAmount,
-            currentAmount: finalAmount, // Use final amount including tax and shipping
-            finalAmount:finalAmount,
+            currentAmount: finalAmount,
+            finalAmount: finalAmount,
             taxAmount,
             shippingAmount,
             paymentMethod,
@@ -141,12 +156,18 @@ const createOrder = async (req, res) => {
             couponApplied: appliedCoupon,
             estimatedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         });
+
         // Handle Razorpay order creation
         let razorpayOrderData = null;
         if (paymentMethod === 'razorpay') {
             try {
-                const amountInPaise = Math.round(finalAmount * 100);
+                // Initialize Razorpay instance here
+                const razorpay = new Razorpay({
+                    key_id: process.env.RAZORPAY_KEY_ID,
+                    key_secret: process.env.RAZORPAY_KEY_SECRET
+                });
 
+                const amountInPaise = Math.round(finalAmount * 100);
                 const timestamp = Date.now().toString().slice(-8);
                 const randomStr = Math.random().toString(36).substring(2, 6);
                 const receipt = `ord_${timestamp}${randomStr}`;
@@ -196,18 +217,18 @@ const createOrder = async (req, res) => {
                 console.log("User ID:", userId);
                 console.log("Final Amount:", finalAmount);
                 console.log("Order ID:", order._id);
-        
+
                 const walletResponse = await useWalletBalance({
                     user: { data: { user_id: userId } },
                     body: {
                         amount: finalAmount,
                         orderId: order._id,
-                        userId:userId
+                        userId: userId
                     }
                 });
-        
+
                 console.log("Wallet Response:", walletResponse);
-        
+
                 if (!walletResponse.success) {
                     console.error("Wallet payment failed:", walletResponse.message);
                     return res.status(400).json({
@@ -215,11 +236,11 @@ const createOrder = async (req, res) => {
                         message: walletResponse.message || "Wallet payment failed"
                     });
                 }
-        
+
                 console.log("Wallet payment successful! Updating order status...");
                 order.paymentStatus = "completed";
                 order.orderStatus = "Pending";
-        
+
             } catch (error) {
                 console.error("Error processing wallet payment:", error);
                 return res.status(400).json({
@@ -228,7 +249,6 @@ const createOrder = async (req, res) => {
                 });
             }
         }
-        
 
         // Save order
         await order.save();
@@ -264,7 +284,6 @@ const createOrder = async (req, res) => {
         });
 
         // Prepare response
-
         const responseData = {
             success: true,
             message: 'Order created successfully',
@@ -298,6 +317,7 @@ const createOrder = async (req, res) => {
         });
     }
 };
+
 
 
 // Get all orders for a user
