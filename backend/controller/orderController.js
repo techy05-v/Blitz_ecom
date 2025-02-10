@@ -3,6 +3,7 @@ const Cart = require('../model/cartSchema');
 const ProductSchema = require('../model/productSchema');
 const { validateCoupon, markCouponAsUsed } = require('../controller/couponController')
 const Coupon = require("../model/couponSchema")
+const punycode = require('punycode');
 const Wallet= require("../model/walletSchema")
 // Create a new order from cart
 const dotenv = require("dotenv")
