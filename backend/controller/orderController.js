@@ -10,9 +10,12 @@ dotenv.config();
 const Razorpay = require("razorpay")
 const crypto = require("crypto");
 const { useWalletBalance } = require('./walletController');
-console.log('Checking Razorpay credentials:');
-console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID);
-console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET);
+if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    console.error("Razorpay credentials are missing in .env");
+} else {
+    console.log("Razorpay credentials loaded successfully");
+}
+
 
 // const razorpay = new Razorpay({
 //     key_id: process.env.RAZORPAY_KEY_ID,
