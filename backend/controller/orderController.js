@@ -18,14 +18,6 @@ console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET);
 //     key_id: process.env.RAZORPAY_KEY_ID,
 //     key_secret: process.env.RAZORPAY_KEY_SECRET
 // });
-const ProductSchema = require('../model/productSchema');
-const { validateCoupon, markCouponAsUsed } = require('../controller/couponController');
-const Coupon = require("../model/couponSchema");
-const Wallet = require("../model/walletSchema");
-const Order = require("../model/orderSchema"); // Make sure to add this
-const Cart = require("../model/cartSchema"); // Make sure to add this
-const Razorpay = require("razorpay");
-const { useWalletBalance } = require('./walletController');
 
 const createOrder = async (req, res) => {
     try {
