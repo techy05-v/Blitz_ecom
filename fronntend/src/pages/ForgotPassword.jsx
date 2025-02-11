@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { axiosInstance } from "../../api/axiosConfig";
+import { axiosInstance } from "../api/axiosConfig";
 import axios from "axios";
 
 const ForgotPassword = () => {
