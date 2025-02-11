@@ -6,7 +6,6 @@ const InvoiceDownload = ({ orderId, orderStatus }) => {
     const isDelivered = orderStatus === "Delivered";
     
     const downloadInvoice = async () => {
-        // First check if order is delivered
         if (!isDelivered) {
             toast.error('Invoice is only available after delivery', {
                 className: 'bg-amber-50 text-amber-800 border-amber-200'
@@ -22,13 +21,26 @@ const InvoiceDownload = ({ orderId, orderStatus }) => {
             console.group('Invoice Download Process');
             console.log('Initiating invoice download for Order ID:', orderId);
             
-            const response = await axiosInstance.get(`/user/orders/${orderId}/invoice`, {
+            // Using orderNumber instead of trying to use it as an ObjectId
+            const response = await axiosInstance.get(`/user/orders/invoice/${orderId}`, {
                 responseType: 'blob',
                 onDownloadProgress: (progressEvent) => {
                     const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                     console.log(`Download Progress: ${percentCompleted}%`);
                 }
             });
+
+            // Check if the response is an error message
+            const contentType = response.headers['content-type'];
+            if (contentType && contentType.includes('application/json')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const errorData = JSON.parse(reader.result);
+                    throw { response: { status: 400, data: errorData } };
+                };
+                reader.readAsText(response.data);
+                return;
+            }
 
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
@@ -54,6 +66,12 @@ const InvoiceDownload = ({ orderId, orderStatus }) => {
                 };
 
                 switch (status) {
+                    case 400:
+                        toast.error('Invalid order number', {
+                            ...toastConfig,
+                            description: 'Please refresh and try again.'
+                        });
+                        break;
                     case 403:
                         toast.error('Order not delivered yet', {
                             ...toastConfig,
