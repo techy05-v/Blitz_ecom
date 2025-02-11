@@ -553,28 +553,28 @@ const CheckoutPage = () => {
     );
   }
 
-  if (addresses.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              No Delivery Addresses Found
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Please add a delivery address to continue checkout.
-            </p>
-            <button
-              onClick={() => setIsAddressModalOpen(true)}
-              className="bg-purple-500 text-white px-6 py-2 rounded-full hover:bg-purple-600 transition duration-300 transform hover:scale-105"
-            >
-              Add New Address
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // if (addresses.length === 0) {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+  //       <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+  //         <div className="text-center">
+  //           <h2 className="text-2xl font-bold text-gray-800 mb-4">
+  //             No Delivery Addresses Found
+  //           </h2>
+  //           <p className="text-gray-600 mb-6">
+  //             Please add a delivery address to continue checkout.
+  //           </p>
+  //           <button
+  //             onClick={() => setIsAddressModalOpen(true)}
+  //             className="bg-purple-500 text-white px-6 py-2 rounded-full hover:bg-purple-600 transition duration-300 transform hover:scale-105"
+  //           >
+  //             Add New Address
+  //           </button>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   if (cartItems.length === 0) {
     return (
