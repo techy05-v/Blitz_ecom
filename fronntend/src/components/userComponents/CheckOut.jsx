@@ -565,7 +565,7 @@ const CheckoutPage = () => {
               Please add a delivery address to continue checkout.
             </p>
             <button
-              onClick={() => setIsAddressModalOpen(true)}
+              onClick={() => navigate("/user/address")}
               className="bg-purple-500 text-white px-6 py-2 rounded-full hover:bg-purple-600 transition duration-300 transform hover:scale-105"
             >
               Add New Address
