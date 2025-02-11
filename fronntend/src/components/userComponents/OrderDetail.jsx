@@ -768,7 +768,7 @@ const OrderDetails = () => {
           </div>
 
           {/* Actions */}
-          <InvoiceDownload orderId={orderId} />
+          <InvoiceDownload orderId={order.orderId} orderStatus={order.orderStatus} />
           <div className="px-6 py-4 bg-gray-50 flex justify-between items-center mt-6">
             <Link
               to="/user/orders"

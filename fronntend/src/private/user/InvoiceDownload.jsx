@@ -3,7 +3,17 @@ import { toast } from 'sonner';
 import { axiosInstance } from '../../api/axiosConfig';
 
 const InvoiceDownload = ({ orderId, orderStatus }) => {
+    const isDelivered = orderStatus === "Delivered";
+    
     const downloadInvoice = async () => {
+        // First check if order is delivered
+        if (!isDelivered) {
+            toast.error('Invoice is only available after delivery', {
+                className: 'bg-amber-50 text-amber-800 border-amber-200'
+            });
+            return;
+        }
+
         const loadingToast = toast.loading('Preparing your invoice...', {
             className: 'bg-blue-50 text-blue-800 border-blue-200'
         });
@@ -45,44 +55,33 @@ const InvoiceDownload = ({ orderId, orderStatus }) => {
 
                 switch (status) {
                     case 403:
-                        toast('Invoice Not Available Yet', {
+                        toast.error('Order not delivered yet', {
                             ...toastConfig,
-                            description: 'The invoice will be available once your order is delivered.'
+                            description: 'The invoice will be available after delivery.'
                         });
                         break;
                     case 404:
-                        toast('Order Not Found', {
+                        toast.error('Order not found', {
                             ...toastConfig,
                             description: 'Please refresh the page and try again.'
                         });
                         break;
                     case 401:
-                        toast('Download Issue', {
+                        toast.error('Unable to download', {
                             ...toastConfig,
-                            description: 'Unable to download invoice. Please try again.'
-                        });
-                        break;
-                    case 500:
-                        toast('Temporary Issue', {
-                            ...toastConfig,
-                            description: 'We\'re experiencing technical difficulties. Please try again in a few minutes.'
+                            description: 'Please try refreshing the page.'
                         });
                         break;
                     default:
-                        toast('Download Unavailable', {
+                        toast.error('Download failed', {
                             ...toastConfig,
-                            description: 'Please try again later or contact support if the issue persists.'
+                            description: 'Please try again later.'
                         });
                 }
-            } else if (error.request) {
-                toast('Connection Issue', {
-                    className: 'bg-amber-50 text-amber-800 border-amber-200',
-                    description: 'Please check your internet connection and try again.'
-                });
             } else {
-                toast('Download Issue', {
+                toast.error('Connection failed', {
                     className: 'bg-amber-50 text-amber-800 border-amber-200',
-                    description: 'Unable to prepare your invoice. Please try again.'
+                    description: 'Please check your internet and try again.'
                 });
             }
 
@@ -90,17 +89,17 @@ const InvoiceDownload = ({ orderId, orderStatus }) => {
         }
     };
 
-    // Only render the button if order status is "Delivered"
-    if (orderStatus !== "Delivered") {
-        return null;
-    }
-
     return (
         <button 
             onClick={downloadInvoice}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors duration-200"
+            disabled={!isDelivered}
+            className={`px-4 py-2 rounded transition-colors duration-200 ${
+                isDelivered 
+                    ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" 
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
         >
-            Download Invoice
+            {isDelivered ? 'Download Invoice' : 'Invoice Available After Delivery'}
         </button>
     );
 };
