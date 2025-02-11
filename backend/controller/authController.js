@@ -7,7 +7,7 @@ const dotenv = require("dotenv");
 const UnverifiedUser= require("../model/unverifiedUserModel")
 const { sendOTPEmail, sendPasswordResetEmail } = require("../utils/emailUtils");
 const storeToken =require("../utils/JWT/storeCookie")
-const { generateUserId } = require("../utils/JWT/userIdGenerator");
+const  generateUserId  = require("../utils/JWT/userIdGenerator");
 const { OAuth2Client } = require("google-auth-library");
 const {
     generateAccessToken,
@@ -426,7 +426,6 @@ const userSignUp = async (req, res) => {
       const hashedPassword = await hashPassword(password);
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const user_id = generateUserId();
-
       const newUnverifiedUser = new UnverifiedUser({
           user_name,
           email: email.toLowerCase(),

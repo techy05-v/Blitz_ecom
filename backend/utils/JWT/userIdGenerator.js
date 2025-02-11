@@ -3,3 +3,5 @@ const generateUserId = () => {
     const timestampPart = Date.now().toString().slice(-4);
     return `user${randomPart}${timestampPart}`;
 };
+
+module.exports = {generateUserId}
