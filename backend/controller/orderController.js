@@ -999,7 +999,7 @@ const repayOrder = async (req, res) => {
             const receipt = `repay_${timestamp}${randomStr}`;
 
             try {
-                const razorpayOrder = await razorpay.orders.create({
+                const razorpayOrder = await Razorpay.orders.create({
                     amount: amountInPaise,
                     currency: 'INR',
                     receipt: receipt,
