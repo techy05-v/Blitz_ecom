@@ -7,7 +7,7 @@ const dotenv = require("dotenv");
 const UnverifiedUser= require("../model/unverifiedUserModel")
 const { sendOTPEmail, sendPasswordResetEmail } = require("../utils/emailUtils");
 const storeToken =require("../utils/JWT/storeCookie")
-const  generateUserId  = require("../utils/JWT/userIdGenerator");
+const  {generateUserId}  = require("../utils/JWT/userIdGenerator");
 const { OAuth2Client } = require("google-auth-library");
 const {
     generateAccessToken,
