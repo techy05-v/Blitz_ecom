@@ -516,27 +516,34 @@ const cancelOrder = async (req, res) => {
  
         // Refund processing
         if (order.paymentStatus === 'completed') {
+            let wallet = await Wallet.findOne({ user: userId });
+
+            // Create wallet if it doesn't exist
+            if (!wallet) {
+                wallet = new Wallet({
+                    user: userId,
+                    balance: 0,
+                    transactions: []
+                });
+            }
+
             if (['wallet', 'razorpay'].includes(order.paymentMethod)) {
-                const wallet = await Wallet.findOne({ user: userId });
-                
-                if (wallet) {
-                    wallet.transactions.push({
-                        amount: refundAmount,
-                        type: 'credit',
-                        orderId: order.orderId,
-                        description: 'Remaining order refund',
-                        status: 'completed'
-                    });
-                    
-                    wallet.balance += refundAmount;
-                    await wallet.save();
- 
-                    // Update total refund amount
-                    order.totalRefundAmount += refundAmount;
-                    order.paymentStatus = 'refunded';
-                }
+                // Refund to wallet
+                wallet.transactions.push({
+                    amount: refundAmount,
+                    type: 'credit',
+                    orderId: order.orderId,
+                    description: 'Remaining order refund',
+                    status: 'completed'
+                });
+
+                wallet.balance += refundAmount;
+                await wallet.save();
+
+                order.totalRefundAmount += refundAmount;
+                order.paymentStatus = 'refunded';
             } else {
-                // For other payment methods
+                // Refund for other payment methods
                 order.refundHistory.push({
                     amount: refundAmount,
                     date: new Date(),
@@ -655,45 +662,48 @@ const cancelOrderItem = async (req, res) => {
 
         // Handle refund if payment was already made
         if (order.paymentStatus === 'completed') {
-            const refundAmount = orderItem.discountedPrice || orderItem.price;
-            const refundTotal = refundAmount * orderItem.quantity;
+            const refundAmount = (orderItem.discountedPrice || orderItem.price) * orderItem.quantity;
+            let wallet = await Wallet.findOne({ user: userId });
 
-            // Wallet and Razorpay payment refund handling
+            // Create wallet if it doesn't exist
+            if (!wallet) {
+                wallet = new Wallet({
+                    user: userId,
+                    balance: 0,
+                    transactions: []
+                });
+            }
+
+            // Process refund for wallet payments
             if (['wallet', 'razorpay'].includes(order.paymentMethod)) {
-                const wallet = await Wallet.findOne({ user: userId });
-                if (wallet) {
-                    wallet.transactions.push({
-                        amount: refundTotal,
-                        type: 'credit',
-                        orderId: order.orderId,
-                        description: `Refund for cancelled item ${itemId}`,
-                        status: 'completed'
-                    });
-                    wallet.balance += refundTotal;
-                    await wallet.save();
+                wallet.transactions.push({
+                    amount: refundAmount,
+                    type: 'credit',
+                    orderId: order.orderId,
+                    description: `Refund for cancelled item ${itemId}`,
+                    status: 'completed'
+                });
 
-                    orderItem.refundStatus = 'completed';
-                    orderItem.refundAmount = refundTotal;
-                    orderItem.refundDate = new Date(); 
-                    order.totalRefundAmount = (order.totalRefundAmount || 0) + refundTotal;
-                } else {
-                    // Fallback if wallet not found
-                    orderItem.refundStatus = 'failed';
-                }
+                wallet.balance += refundAmount;
+                await wallet.save();
+
+                orderItem.refundStatus = 'completed';
+                orderItem.refundAmount = refundAmount;
+                orderItem.refundDate = new Date();
+                order.totalRefundAmount = (order.totalRefundAmount || 0) + refundAmount;
             } else {
-                // For other payment methods
-                const refundEntry = {
-                    amount: refundTotal,
+                // Process refund for other payment methods
+                order.refundHistory.push({
+                    amount: refundAmount,
                     date: new Date(),
                     reason: cancelReason,
                     status: 'pending',
                     itemId: itemId
-                };
-                
-                order.refundHistory.push(refundEntry);
-                order.totalRefundAmount = (order.totalRefundAmount || 0) + refundTotal;
+                });
+
                 orderItem.refundStatus = 'pending';
-                orderItem.refundAmount = refundTotal;
+                orderItem.refundAmount = refundAmount;
+                order.totalRefundAmount = (order.totalRefundAmount || 0) + refundAmount;
             }
         }
 
