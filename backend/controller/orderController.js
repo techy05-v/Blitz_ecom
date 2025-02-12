@@ -516,7 +516,11 @@ const cancelOrder = async (req, res) => {
  
         // Refund processing
         if (order.paymentStatus === 'completed') {
-            let wallet = await Wallet.findOne({ user: userId });
+            const wallet = await Wallet.findOneAndUpdate(
+                { user: userId },
+                { $setOnInsert: { balance: 0, isActive: true, transactions: [] } },
+                { upsert: true, new: true }
+            );
 
             // Create wallet if it doesn't exist
             if (!wallet) {
@@ -663,7 +667,11 @@ const cancelOrderItem = async (req, res) => {
         // Handle refund if payment was already made
         if (order.paymentStatus === 'completed') {
             const refundAmount = (orderItem.discountedPrice || orderItem.price) * orderItem.quantity;
-            let wallet = await Wallet.findOne({ user: userId });
+            const wallet = await Wallet.findOneAndUpdate(
+                { user: userId },
+                { $setOnInsert: { balance: 0, isActive: true, transactions: [] } },
+                { upsert: true, new: true }
+            );
 
             // Create wallet if it doesn't exist
             if (!wallet) {
