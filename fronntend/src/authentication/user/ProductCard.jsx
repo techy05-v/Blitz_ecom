@@ -52,7 +52,6 @@ const ProductCard = ({
       setLocalIsInWishlist(isItemInWishlist);
     } catch (error) {
       console.error("Error checking wishlist status:", error);
-      toast.error("Failed to check wishlist status");
     }
   };
 
