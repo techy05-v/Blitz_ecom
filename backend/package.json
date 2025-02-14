@@ -26,6 +26,6 @@
     "razorpay": "^2.9.5"
   },
   "scripts": {
-    "start": "nodemon server.js"
+    "start": "node api.js && nodemon server.js"
   }
 }
