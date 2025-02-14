@@ -78,7 +78,7 @@ export default function ShopPage() {
           default: 
             backendSortOrder = "";
         }
-        
+        const categoriesArray = Array.from(selectedCategories);
         const [productsData, categoriesData] = await Promise.all([
           fetchProducts(backendSortOrder, searchQuery, pagination.currentPage, pagination.productsPerPage),
           fetchCategories(),
@@ -108,6 +108,18 @@ export default function ShopPage() {
       } else {
         newSet.add(categoryId);
       }
+      
+      // Update URL with selected categories
+      const params = new URLSearchParams(location.search);
+      const categoryArray = Array.from(newSet);
+      if (categoryArray.length > 0) {
+        params.set('categories', categoryArray.join(','));
+      } else {
+        params.delete('categories');
+      }
+      params.set('page', '1'); // Reset to first page when changing categories
+      navigate(`${location.pathname}?${params.toString()}`);
+      
       return newSet;
     });
   };
@@ -132,8 +144,10 @@ export default function ShopPage() {
   };
 
   const handlePageChange = (newPage) => {
+    if (newPage === pagination.currentPage) return;
+    
     const params = new URLSearchParams(location.search);
-    params.set('page', newPage);
+    params.set('page', newPage.toString());
     navigate(`${location.pathname}?${params.toString()}`);
     setPagination(prev => ({ ...prev, currentPage: newPage }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -149,28 +163,37 @@ export default function ShopPage() {
 
   const renderPagination = () => {
     const { currentPage, totalPages } = pagination;
+    
+    if (totalPages <= 1) return null;
+    
     const pages = [];
+    const maxPagesVisible = 5; // Adjust this number to show more/fewer pages
     
-    // Always show first page
-    pages.push(1);
+    // Calculate the range of pages to show
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesVisible - 1);
     
-    // Calculate range of pages to show
-    let start = Math.max(2, currentPage - 2);
-    let end = Math.min(totalPages - 1, currentPage + 2);
+    // Adjust startPage if we're near the end
+    if (endPage - startPage + 1 < maxPagesVisible) {
+      startPage = Math.max(1, endPage - maxPagesVisible + 1);
+    }
     
-    // Add ellipsis after first page if needed
-    if (start > 2) pages.push('...');
+    // Always include first page
+    if (startPage > 1) {
+      pages.push(1);
+      if (startPage > 2) pages.push('...');
+    }
     
-    // Add middle pages
-    for (let i = start; i <= end; i++) {
+    // Add pages in the middle
+    for (let i = startPage; i <= endPage; i++) {
       pages.push(i);
     }
     
-    // Add ellipsis before last page if needed
-    if (end < totalPages - 1) pages.push('...');
-    
-    // Add last page if there's more than one page
-    if (totalPages > 1) pages.push(totalPages);
+    // Always include last page
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) pages.push('...');
+      pages.push(totalPages);
+    }
 
     return (
       <div className="flex items-center justify-center mt-8 space-x-1">
