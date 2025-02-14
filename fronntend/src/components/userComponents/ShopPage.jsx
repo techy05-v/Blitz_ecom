@@ -10,12 +10,12 @@ const PaginationButton = ({ children, onClick, disabled, active }) => (
     disabled={disabled}
     className={`
       px-3 py-1 rounded-md text-sm font-medium
-      ${active 
-        ? 'bg-black text-white' 
+      ${active
+        ? 'bg-black text-white'
         : 'bg-white text-gray-700 hover:bg-gray-50'
       }
-      ${disabled 
-        ? 'opacity-50 cursor-not-allowed' 
+      ${disabled
+        ? 'opacity-50 cursor-not-allowed'
         : 'hover:bg-gray-100'
       }
       border border-gray-300 mx-1
@@ -41,17 +41,29 @@ export default function ShopPage() {
     totalProducts: 0,
     productsPerPage: 12
   });
-  
+
   const location = useLocation();
   const navigate = useNavigate();
 
+  const calculateTotalPages = (totalProducts, productsPerPage) => {
+    return Math.max(1, Math.ceil(totalProducts / productsPerPage));
+  };
   // Parse URL parameters on mount and when URL changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const searchParam = params.get('search');
-    const pageParam = params.get('page');
+    const pageParam = parseInt(params.get('page')) || 1;
+    const categoriesParam = params.get('categories');
+
     if (searchParam) setSearchQuery(searchParam);
-    if (pageParam) setPagination(prev => ({ ...prev, currentPage: parseInt(pageParam) }));
+    if (pageParam) {
+      // Ensure page param is valid
+      const validPage = Math.max(1, pageParam);
+      setPagination(prev => ({ ...prev, currentPage: validPage }));
+    }
+    if (categoriesParam) {
+      setSelectedCategories(new Set(categoriesParam.split(',')));
+    }
   }, [location.search]);
 
   // Load products and categories
@@ -60,32 +72,57 @@ export default function ShopPage() {
       try {
         setLoading(true);
         setError(null);
-        
+
         let backendSortOrder = "";
-        switch(sortOrder) {
-          case "Price: Low to High": 
-            backendSortOrder = "Low-High"; 
+        switch (sortOrder) {
+          case "Price: Low to High":
+            backendSortOrder = "Low-High";
             break;
-          case "Price: High to Low": 
-            backendSortOrder = "High-Low"; 
+          case "Price: High to Low":
+            backendSortOrder = "High-Low";
             break;
-          case "Name: A to Z": 
-            backendSortOrder = "A-Z"; 
+          case "Name: A to Z":
+            backendSortOrder = "A-Z";
             break;
-          case "Name: Z to A": 
-            backendSortOrder = "Z-A"; 
+          case "Name: Z to A":
+            backendSortOrder = "Z-A";
             break;
-          default: 
+          default:
             backendSortOrder = "";
         }
-        const categoriesArray = Array.from(selectedCategories);
+
         const [productsData, categoriesData] = await Promise.all([
-          fetchProducts(backendSortOrder, searchQuery, pagination.currentPage, pagination.productsPerPage),
+          fetchProducts(
+            backendSortOrder,
+            searchQuery,
+            pagination.currentPage,
+            pagination.productsPerPage
+          ),
           fetchCategories(),
         ]);
-        
-        setProducts(Array.isArray(productsData.activeProducts) ? productsData.activeProducts : []);
-        setPagination(productsData.pagination);
+
+        const activeProducts = Array.isArray(productsData.activeProducts)
+          ? productsData.activeProducts
+          : [];
+
+        // Calculate actual total pages based on active products
+        const actualTotalProducts = productsData.pagination.totalProducts;
+        const actualTotalPages = calculateTotalPages(actualTotalProducts, pagination.productsPerPage);
+
+        // If current page is greater than actual total pages, redirect to last valid page
+        if (pagination.currentPage > actualTotalPages && actualTotalPages > 0) {
+          const params = new URLSearchParams(location.search);
+          params.set('page', actualTotalPages.toString());
+          navigate(`${location.pathname}?${params.toString()}`);
+          return; // Return early as we're going to reload with new page
+        }
+
+        setProducts(activeProducts);
+        setPagination(prev => ({
+          ...prev,
+          totalPages: actualTotalPages,
+          totalProducts: actualTotalProducts
+        }));
         setCategories(Array.isArray(categoriesData) ? categoriesData : []);
       } catch (err) {
         console.error('Complete Load Error:', err);
@@ -96,9 +133,9 @@ export default function ShopPage() {
         setLoading(false);
       }
     }
-  
+
     loadData();
-  }, [sortOrder, searchQuery, pagination.currentPage]);
+  }, [sortOrder, searchQuery, pagination.currentPage, location.pathname]);
 
   const handleCategoryChange = (categoryId) => {
     setSelectedCategories((prev) => {
@@ -108,7 +145,7 @@ export default function ShopPage() {
       } else {
         newSet.add(categoryId);
       }
-      
+
       // Update URL with selected categories
       const params = new URLSearchParams(location.search);
       const categoryArray = Array.from(newSet);
@@ -119,7 +156,7 @@ export default function ShopPage() {
       }
       params.set('page', '1'); // Reset to first page when changing categories
       navigate(`${location.pathname}?${params.toString()}`);
-      
+
       return newSet;
     });
   };
@@ -128,11 +165,11 @@ export default function ShopPage() {
     e.preventDefault();
     const trimmedQuery = searchQuery.trim();
     const params = new URLSearchParams();
-    
+
     if (trimmedQuery) {
       params.set('search', trimmedQuery);
     }
-    
+
     // Reset to first page on new search
     params.set('page', '1');
     navigate(`/user/shop?${params.toString()}`);
@@ -144,12 +181,14 @@ export default function ShopPage() {
   };
 
   const handlePageChange = (newPage) => {
-    if (newPage === pagination.currentPage) return;
-    
+    // Validate the new page number
+    if (newPage < 1 || newPage > pagination.totalPages || newPage === pagination.currentPage) {
+      return;
+    }
+
     const params = new URLSearchParams(location.search);
     params.set('page', newPage.toString());
     navigate(`${location.pathname}?${params.toString()}`);
-    setPagination(prev => ({ ...prev, currentPage: newPage }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -162,34 +201,32 @@ export default function ShopPage() {
   };
 
   const renderPagination = () => {
-    const { currentPage, totalPages } = pagination;
-    
-    if (totalPages <= 1) return null;
-    
+    const { currentPage, totalPages, totalProducts } = pagination;
+
+    // Don't show pagination if there are no products or only one page
+    if (totalProducts === 0 || totalPages <= 1) {
+      return null;
+    }
+
     const pages = [];
-    const maxPagesVisible = 5; // Adjust this number to show more/fewer pages
-    
-    // Calculate the range of pages to show
+    const maxPagesVisible = 5;
+
     let startPage = Math.max(1, currentPage - Math.floor(maxPagesVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxPagesVisible - 1);
-    
-    // Adjust startPage if we're near the end
+
     if (endPage - startPage + 1 < maxPagesVisible) {
       startPage = Math.max(1, endPage - maxPagesVisible + 1);
     }
-    
-    // Always include first page
+
     if (startPage > 1) {
       pages.push(1);
       if (startPage > 2) pages.push('...');
     }
-    
-    // Add pages in the middle
+
     for (let i = startPage; i <= endPage; i++) {
       pages.push(i);
     }
-    
-    // Always include last page
+
     if (endPage < totalPages) {
       if (endPage < totalPages - 1) pages.push('...');
       pages.push(totalPages);
@@ -297,7 +334,7 @@ export default function ShopPage() {
               <div className="flex items-center space-x-2">
                 <Filter className="h-5 w-5" />
                 <span className="text-sm font-medium">Sort by:</span>
-                <select 
+                <select
                   className="rounded-lg border border-gray-300 py-1 pl-3 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value)}
@@ -324,15 +361,21 @@ export default function ShopPage() {
                   price={product.regularPrice || 0}
                   images={product.images || []}
                   discountPercent={product.discountPercent || 0}
-                  availableSizes={product.availableSizes} 
+                  availableSizes={product.availableSizes}
                   isInWishlist={wishlistItems.includes(product._id)}
                   onWishlistUpdate={handleWishlistUpdate}
                 />
               ))}
             </div>
-            
+
+            {!loading && products.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No products found</p>
+              </div>
+            )}
+
             {/* Pagination */}
-            {renderPagination()}
+            {products.length > 0 && renderPagination()}
           </div>
         </div>
       </div>
